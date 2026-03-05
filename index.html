@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VM + Arquitetos | Formulario Diario</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="page-header">
+        <p class="brand">VM + ARQUITETOS</p>
+        <h1>Formulario Diario de Projetos</h1>
+        <p class="subtitle">
+          Preencha 1 vez por dia, no fim do expediente. Tempo medio: 3 minutos.
+        </p>
+      </header>
+
+      <section class="card">
+        <form id="daily-form" novalidate>
+          <div class="field">
+            <label for="professional">Campo 1 - Nome do profissional</label>
+            <select id="professional" name="professional" required>
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="work-date">Campo 2 - Data</label>
+            <input id="work-date" name="workDate" type="date" required />
+          </div>
+
+          <div class="field">
+            <p class="field-title">
+              Campo 3 - Em qual(is) projeto(s) voce trabalhou hoje?
+            </p>
+            <div id="project-list" class="check-list"></div>
+          </div>
+
+          <div id="project-sections"></div>
+
+          <div class="actions">
+            <button id="submit-button" type="submit">Enviar registro diario</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="feedback" class="feedback hidden" aria-live="polite"></section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
