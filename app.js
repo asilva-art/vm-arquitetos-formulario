@@ -542,6 +542,7 @@
 
   function buildFallbackDailySummary(payload) {
     var projects = (payload.projects || []).map(function (project) {
+      var optionList = getRefOptionsForProject(project.projectCode);
       return {
         projectCode: cleanText(project.projectCode),
         contractId: cleanText(project.projectCode),
@@ -555,8 +556,8 @@
             blockReason: cleanText(project.blockDescription)
           }
         ],
-        snapshot: {},
-        nextTasks: []
+        snapshot: buildSnapshotFromOptions(optionList),
+        nextTasks: buildNextTasksFromOptions(optionList)
       };
     });
 
@@ -565,6 +566,56 @@
       dateBr: formatIsoDateToBr(payload.date),
       generatedAtBr: "",
       projects: projects
+    };
+  }
+
+  function buildSnapshotFromOptions(optionList) {
+    var snapshot = {
+      total: 0,
+      naoIniciada: 0,
+      emAndamento: 0,
+      concluida: 0,
+      bloqueada: 0,
+      pendentes: 0
+    };
+
+    var i;
+    for (i = 0; i < optionList.length; i += 1) {
+      var status = cleanText(optionList[i] && optionList[i].status).toUpperCase();
+      snapshot.total += 1;
+      snapshot.pendentes += 1;
+      if (status === "NAO INICIADA") {
+        snapshot.naoIniciada += 1;
+      } else if (status === "EM ANDAMENTO") {
+        snapshot.emAndamento += 1;
+      } else if (status === "BLOQUEADA") {
+        snapshot.bloqueada += 1;
+      } else if (status === "CONCLUIDA") {
+        snapshot.concluida += 1;
+      }
+    }
+
+    return snapshot;
+  }
+
+  function buildNextTasksFromOptions(optionList) {
+    return optionList.slice(0, 3).map(function (item) {
+      var parsed = parseRefOptionLabel(cleanText(item.label));
+      return {
+        refEap: parsed.refEap,
+        phase: parsed.phase,
+        task: parsed.task,
+        status: cleanText(item.status)
+      };
+    });
+  }
+
+  function parseRefOptionLabel(label) {
+    var parts = cleanText(label).split(" | ");
+    return {
+      refEap: cleanText(parts[0]),
+      phase: cleanText(parts[1]),
+      task: cleanText(parts.slice(2).join(" | "))
     };
   }
 
@@ -649,7 +700,8 @@
         .map(function (item) {
           return {
             value: cleanText(item && item.value),
-            label: cleanText(item && item.label)
+            label: cleanText(item && item.label),
+            status: cleanText(item && item.status)
           };
         })
         .filter(function (item) {
