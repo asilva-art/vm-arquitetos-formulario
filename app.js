@@ -8,9 +8,10 @@
   var projectListEl = document.getElementById("project-list");
   var projectSectionsEl = document.getElementById("project-sections");
   var feedbackEl = document.getElementById("feedback");
+  var summaryToggleEl = document.getElementById("summary-toggle");
   var dailySummaryEl = document.getElementById("daily-summary");
   var submitButtonEl = document.getElementById("submit-button");
-  var SUMMARY_CACHE_KEY = "vm_form_daily_summary_v1";
+  var lastSubmittedSummary = null;
 
   var projectMap = {};
   var projectList = cfg.projetos || [];
@@ -36,9 +37,12 @@
 
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
+    if (summaryToggleEl) {
+      summaryToggleEl.addEventListener("click", handleSummaryToggle);
+    }
 
     loadRefOptionsFromServer();
-    renderCachedSummary();
+    clearSummaryUI();
   }
 
   function populateProfessionals() {
@@ -313,7 +317,7 @@
             msg += " Linhas criadas: " + result.data.rowsCreated + ".";
           }
           showFeedback("ok", msg);
-          renderDailySummary(result.data.dailySummary || buildFallbackDailySummary(payload));
+          setSummaryForSubmission(result.data.dailySummary || buildFallbackDailySummary(payload));
           resetForm();
           return;
         }
@@ -454,8 +458,51 @@
       .join("");
 
     dailySummaryEl.innerHTML = header + projectsHtml;
-    dailySummaryEl.classList.remove("hidden");
-    persistSummary(summary);
+  }
+
+  function setSummaryForSubmission(summary) {
+    if (!summary || !Array.isArray(summary.projects) || !summary.projects.length) {
+      clearSummaryUI();
+      return;
+    }
+
+    lastSubmittedSummary = summary;
+    renderDailySummary(summary);
+
+    if (dailySummaryEl) {
+      dailySummaryEl.classList.add("hidden");
+    }
+    if (summaryToggleEl) {
+      summaryToggleEl.textContent = "Ver resumo deste envio";
+      summaryToggleEl.classList.remove("hidden");
+    }
+  }
+
+  function handleSummaryToggle() {
+    if (!dailySummaryEl || !summaryToggleEl || !lastSubmittedSummary) {
+      return;
+    }
+
+    if (dailySummaryEl.classList.contains("hidden")) {
+      dailySummaryEl.classList.remove("hidden");
+      summaryToggleEl.textContent = "Ocultar resumo deste envio";
+      return;
+    }
+
+    dailySummaryEl.classList.add("hidden");
+    summaryToggleEl.textContent = "Ver resumo deste envio";
+  }
+
+  function clearSummaryUI() {
+    lastSubmittedSummary = null;
+    if (summaryToggleEl) {
+      summaryToggleEl.classList.add("hidden");
+      summaryToggleEl.textContent = "Ver resumo deste envio";
+    }
+    if (dailySummaryEl) {
+      dailySummaryEl.classList.add("hidden");
+      dailySummaryEl.innerHTML = "";
+    }
   }
 
   function buildProjectSummaryHtml(project) {
@@ -626,41 +673,6 @@
       return text;
     }
     return match[3] + "/" + match[2] + "/" + match[1];
-  }
-
-  function persistSummary(summary) {
-    try {
-      localStorage.setItem(SUMMARY_CACHE_KEY, JSON.stringify(summary));
-    } catch (err) {
-      // Ignora falha de cache no navegador.
-    }
-  }
-
-  function renderCachedSummary() {
-    var raw = "";
-    var parsed;
-
-    try {
-      raw = localStorage.getItem(SUMMARY_CACHE_KEY) || "";
-    } catch (err) {
-      return;
-    }
-
-    if (!raw) {
-      return;
-    }
-
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      return;
-    }
-
-    if (!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) {
-      return;
-    }
-
-    renderDailySummary(parsed);
   }
 
   function resetForm() {

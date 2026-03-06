@@ -271,6 +271,23 @@ button:disabled {
   border-color: #edb9b3;
 }
 
+.summary-toggle {
+  margin-top: 10px;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--accent);
+}
+
+.summary-toggle:hover {
+  background: #277797;
+}
+
 .daily-summary {
   margin-top: 14px;
   border: 1px solid var(--cloud);
