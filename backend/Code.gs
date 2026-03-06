@@ -342,6 +342,16 @@ function normalizeProject_(item, sectionNumber) {
     throw new Error("Campo 7 obrigatorio quando ha bloqueio na secao " + sectionNumber + ".");
   }
 
+  var taskFreeText = clean_(item.taskFreeText);
+  if (taskFreeText.length > 30) {
+    throw new Error("Campo 4B complementar excede 30 caracteres na secao " + sectionNumber + ".");
+  }
+
+  var observation = clean_(item.observation);
+  if (observation.length > 500) {
+    throw new Error("Campo 8 excede 500 caracteres na secao " + sectionNumber + ".");
+  }
+
   return {
     projectCode: projectCode,
     projectLabel: projectLabel || projectCode,
@@ -351,7 +361,7 @@ function normalizeProject_(item, sectionNumber) {
     statusText: statusLabel,
     isBlocked: isBlocked,
     blockReason: isBlocked ? (blockDescription || blockLabel) : "",
-    observation: clean_(item.observation)
+    observation: observation
   };
 }
 
@@ -638,7 +648,7 @@ function buildSubmissionRecords_(input, controlRows) {
   for (i = 0; i < input.projects.length; i += 1) {
     var item = input.projects[i];
     var projectInfo = resolveProjectInfo_(item.projectCode, item.projectLabel);
-    var phase = inferPhase_(item.tasks);
+    var phase = resolvePhaseForSubmission_(controlRows, projectInfo.contractId, item.refEap, item.refLabel, item.tasks);
     var taskText = item.tasks.join(" | ");
     var refEap = clean_(item.refEap);
 
@@ -669,6 +679,56 @@ function buildSubmissionRecords_(input, controlRows) {
   }
 
   return records;
+}
+
+function resolvePhaseForSubmission_(controlRows, contractId, refEap, refLabel, tasks) {
+  var phase = findPhaseByRef_(controlRows, contractId, refEap);
+  if (phase) {
+    return phase;
+  }
+
+  phase = parsePhaseFromRefLabel_(refLabel);
+  if (phase) {
+    return phase;
+  }
+
+  return inferPhase_(tasks);
+}
+
+function findPhaseByRef_(rows, contractId, refEap) {
+  var targetContract = clean_(contractId);
+  var targetRef = clean_(refEap);
+  var i;
+
+  if (!targetContract || !targetRef) {
+    return "";
+  }
+
+  for (i = 0; i < rows.length; i += 1) {
+    if (clean_(rows[i][2]) !== targetContract) {
+      continue;
+    }
+    if (clean_(rows[i][3]) !== targetRef) {
+      continue;
+    }
+    return clean_(rows[i][4]);
+  }
+
+  return "";
+}
+
+function parsePhaseFromRefLabel_(refLabel) {
+  var text = clean_(refLabel);
+  if (!text) {
+    return "";
+  }
+
+  var parts = text.split("|");
+  if (parts.length < 2) {
+    return "";
+  }
+
+  return clean_(parts[1]);
 }
 
 function buildExecutionRows_(records, input, formId) {

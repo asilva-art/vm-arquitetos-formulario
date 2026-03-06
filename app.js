@@ -99,8 +99,14 @@
         '<p class="hint">Obrigatorio para rastreabilidade.</p>' +
         "</div>" +
         '<div class="field">' +
-        '<p class="field-title">Campo 4B - Categoria do que voce fez neste projeto hoje</p>' +
-        '<div class="option-list">' + buildTaskOptionsHtml(key) + "</div>" +
+        '<label for="task-ref-' + key + '">Campo 4B - Tarefa executada hoje (EAP)</label>' +
+        '<select id="task-ref-' + key + '">' + buildRefOptionsHtml(project.code) + "</select>" +
+        '<p class="hint">Opcional se preencher tarefa livre abaixo.</p>' +
+        "</div>" +
+        '<div class="field">' +
+        '<label for="task-free-' + key + '">Campo 4B complementar - Tarefa livre (max. 30)</label>' +
+        '<input id="task-free-' + key + '" type="text" maxlength="30" placeholder="Ex: ajuste de prancha" />' +
+        '<p class="hint">Preencha se a tarefa do dia nao estiver na EAP.</p>' +
         "</div>" +
         '<div class="field">' +
         '<p class="field-title">Campo 5 - Status</p>' +
@@ -116,8 +122,8 @@
         "</div>" +
         '<div class="field">' +
         '<label for="obs-' + key + '">Campo 8 - Observacao livre (opcional)</label>' +
-        '<textarea id="obs-' + key + '" maxlength="240" placeholder="Maximo de 2 linhas"></textarea>' +
-        '<p class="hint">Opcional. Use apenas se houver algo importante.</p>' +
+        '<textarea id="obs-' + key + '" maxlength="500" placeholder="Maximo de 500 caracteres"></textarea>' +
+        '<p class="hint">Opcional. Maximo de 500 caracteres.</p>' +
         "</div>";
 
       projectSectionsEl.appendChild(sectionEl);
@@ -151,20 +157,6 @@
     var project = projectMap[projectCode];
     var key = project ? project.code : projectCode;
     return refOptionsByProject[key] || [];
-  }
-
-  function buildTaskOptionsHtml(key) {
-    return (cfg.categoriasTarefa || [])
-      .map(function (item, index) {
-        var inputId = "task-" + key + "-" + index;
-        return [
-          '<label class="check-item" for="' + inputId + '">',
-          '<input id="' + inputId + '" type="checkbox" name="tasks-' + key + '" value="' + escapeAttr(item) + '" />',
-          "<span>" + escapeHtml(item) + "</span>",
-          "</label>"
-        ].join("");
-      })
-      .join("");
   }
 
   function buildStatusOptionsHtml(key) {
@@ -242,17 +234,25 @@
     selectedCodes.forEach(function (code) {
       var project = projectMap[code] || { code: code, label: code };
       var key = sanitizeKey(code);
-      var checkedTaskEls = document.querySelectorAll('input[name="tasks-' + key + '"]:checked');
-      var checkedTasks = [];
-      var taskIndex;
-      for (taskIndex = 0; taskIndex < checkedTaskEls.length; taskIndex += 1) {
-        checkedTasks.push(checkedTaskEls[taskIndex].value);
-      }
       var refEl = document.getElementById("ref-" + key);
       var refEap = refEl ? cleanText(refEl.value) : "";
       var refLabel = "";
       if (refEl && refEl.selectedIndex >= 0) {
         refLabel = cleanText(refEl.options[refEl.selectedIndex].text);
+      }
+      var taskRefEl = document.getElementById("task-ref-" + key);
+      var taskRefValue = taskRefEl ? cleanText(taskRefEl.value) : "";
+      var taskRefLabel = "";
+      if (taskRefEl && taskRefEl.selectedIndex >= 0) {
+        taskRefLabel = cleanText(taskRefEl.options[taskRefEl.selectedIndex].text);
+      }
+      var taskFree = ((document.getElementById("task-free-" + key) || {}).value || "").trim();
+      var taskItems = [];
+      if (taskRefLabel) {
+        taskItems.push(extractTaskNameFromRefLabel(taskRefLabel));
+      }
+      if (taskFree) {
+        taskItems.push("Livre: " + taskFree);
       }
       var statusEl = document.querySelector('input[name="status-' + key + '"]:checked');
       var blockEl = document.querySelector('input[name="block-' + key + '"]:checked');
@@ -262,8 +262,8 @@
       if (!refEap) {
         errors.push("Campo REF EAP obrigatorio na secao " + project.label + ".");
       }
-      if (!checkedTasks.length) {
-        errors.push("Campo 4B obrigatorio na secao " + project.label + ".");
+      if (!taskItems.length) {
+        errors.push("Campo 4B obrigatorio na secao " + project.label + " (EAP ou tarefa livre).");
       }
       if (!statusEl) {
         errors.push("Campo 5 obrigatorio na secao " + project.label + ".");
@@ -280,7 +280,10 @@
         projectLabel: project.label,
         refEap: refEap,
         refLabel: refLabel,
-        tasks: checkedTasks,
+        tasks: taskItems,
+        taskRefEap: taskRefValue,
+        taskRefLabel: taskRefLabel,
+        taskFreeText: taskFree,
         statusCode: statusEl ? statusEl.value : "",
         statusLabel: statusEl ? statusEl.dataset.label : "",
         blockCode: blockEl ? blockEl.value : "",
@@ -664,6 +667,11 @@
       phase: cleanText(parts[1]),
       task: cleanText(parts.slice(2).join(" | "))
     };
+  }
+
+  function extractTaskNameFromRefLabel(label) {
+    var parsed = parseRefOptionLabel(label);
+    return cleanText(parsed.task) || cleanText(parsed.refEap) || cleanText(label);
   }
 
   function formatIsoDateToBr(value) {
