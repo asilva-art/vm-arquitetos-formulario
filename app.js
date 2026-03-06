@@ -14,14 +14,9 @@
   var lastSubmittedSummary = null;
 
   var projectMap = {};
-  var projectList = cfg.projetos || [];
+  var projectList = [];
   var refOptionsByProject = normalizeRefOptions(cfg.refOptions || {});
-  var i;
-  for (i = 0; i < projectList.length; i += 1) {
-    if (projectList[i] && projectList[i].code) {
-      projectMap[projectList[i].code] = projectList[i];
-    }
-  }
+  rebuildProjectCache_(cfg.projetos || []);
 
   init();
 
@@ -62,7 +57,7 @@
   }
 
   function populateProjects() {
-    var html = (cfg.projetos || [])
+    var html = (projectList || [])
       .map(function (project) {
         var safeId = "project-" + sanitizeKey(project.code);
         return [
@@ -75,6 +70,39 @@
       .join("");
 
     projectListEl.innerHTML = html || "<p>Nenhum projeto configurado.</p>";
+  }
+
+  function rebuildProjectCache_(projects) {
+    var list = Array.isArray(projects) ? projects : [];
+    var normalized = [];
+    var map = {};
+
+    list.forEach(function (item) {
+      var code = cleanText(item && item.code);
+      if (!code) {
+        return;
+      }
+      var label = formatProjectLabel_(code, cleanText(item && item.label));
+      var project = { code: code, label: label };
+      normalized.push(project);
+      map[code] = project;
+    });
+
+    projectList = normalized;
+    projectMap = map;
+  }
+
+  function formatProjectLabel_(code, label) {
+    if (code === "ADMIN-INTERNO") {
+      return label || "Administrativo/Interno";
+    }
+    if (!label) {
+      return code;
+    }
+    if (label.indexOf(code) === 0) {
+      return label;
+    }
+    return code + " | " + label;
   }
 
   function handleProjectSelectionChange() {
@@ -408,8 +436,19 @@
 
     window[callbackName] = function (data) {
       try {
-        if (data && data.status === "ok" && data.refOptions) {
-          refOptionsByProject = normalizeRefOptions(data.refOptions);
+        if (data && data.status === "ok") {
+          var previouslySelected = getSelectedProjectCodes();
+
+          if (Array.isArray(data.projects) && data.projects.length) {
+            rebuildProjectCache_(data.projects);
+            populateProjects();
+            selectProjectCodes_(previouslySelected);
+          }
+
+          if (data.refOptions) {
+            refOptionsByProject = normalizeRefOptions(data.refOptions);
+          }
+
           renderProjectSections(getSelectedProjectCodes());
         }
       } finally {
@@ -438,6 +477,15 @@
       }
     }
     return url + (url.indexOf("?") >= 0 ? "&" : "?") + query.join("&");
+  }
+
+  function selectProjectCodes_(codes) {
+    (codes || []).forEach(function (code) {
+      var input = document.getElementById("project-" + sanitizeKey(code));
+      if (input) {
+        input.checked = true;
+      }
+    });
   }
 
   function renderDailySummary(summary) {

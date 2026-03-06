@@ -7,6 +7,7 @@
 - Sincroniza automaticamente o controle a cada envio diario.
 - Exige `REF EAP` por secao do formulario (rastreabilidade fina).
 - Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
+- Le contratos automaticamente da aba `CONTRATOS` (IDs `CT-...`) para montar os projetos ativos.
 - Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
@@ -43,9 +44,11 @@
 
 ## Ajustes comuns
 
-- Projetos mapeados:
-  - constante `PROJECT_MAP`.
+- Projetos:
+  - prioridade: aba `CONTRATOS` (id contrato + nome/apelido).
+  - fallback: constante `PROJECT_MAP` (caso a aba nao exista ou esteja incompleta).
 - Nome das abas:
   - `EXEC_SHEET_NAME`
   - `EAP_SHEET_NAME`
   - `CONTROL_SHEET_NAME`
+  - `CONTRACTS_SHEET_NAME`

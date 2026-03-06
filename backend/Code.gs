@@ -61,6 +61,8 @@ var PROJECT_MAP = {
   "CT-122": { projectName: "IT Bernardo Guimaraes", contractId: "CT-122", sectionName: "Secao CT-122" },
   "ADMIN-INTERNO": { projectName: "Administrativo/Interno", contractId: "ADMIN-INTERNO", sectionName: "Secao Administrativo/Interno" }
 };
+var CONTRACTS_SHEET_NAME = "CONTRATOS";
+var PROJECT_MAP_CACHE = null;
 
 var STATUS_LABEL_BY_CODE = {
   CONCLUIDO: "Concluido hoje",
@@ -152,6 +154,7 @@ var EAP_TEMPLATE_ITEMS = [
 ];
 
 function doGet(e) {
+  PROJECT_MAP_CACHE = null;
   var action = "health";
   if (e && e.parameter && e.parameter.action) {
     action = e.parameter.action;
@@ -186,6 +189,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  PROJECT_MAP_CACHE = null;
   var lock = LockService.getScriptLock();
   var lockAcquired = false;
 
@@ -589,23 +593,259 @@ function buildControlRowsFromStandardTemplate_() {
 }
 
 function getActiveContractProjects_() {
+  var map = getProjectMap_();
   var list = [];
   var code;
 
-  for (code in PROJECT_MAP) {
-    if (!Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
+  for (code in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) {
       continue;
     }
     if (String(code).indexOf("CT-") !== 0) {
       continue;
     }
-    list.push(PROJECT_MAP[code]);
+    list.push(map[code]);
   }
 
   list.sort(function (a, b) {
-    return String(a.contractId).localeCompare(String(b.contractId));
+    return compareContractId_(a.contractId, b.contractId);
   });
   return list;
+}
+
+function getProjectsForConfig_() {
+  var map = getProjectMap_();
+  var projects = [];
+  var code;
+
+  for (code in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) {
+      continue;
+    }
+    projects.push({
+      code: map[code].contractId,
+      label: map[code].projectName
+    });
+  }
+
+  projects.sort(function (a, b) {
+    return compareContractId_(a.code, b.code);
+  });
+
+  return projects;
+}
+
+function getProjectMap_() {
+  if (PROJECT_MAP_CACHE) {
+    return PROJECT_MAP_CACHE;
+  }
+
+  var map = {};
+  var code;
+  var i;
+  var discovered = readProjectsFromContractsSheet_();
+
+  for (code in PROJECT_MAP) {
+    if (!Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
+      continue;
+    }
+    map[code] = {
+      projectName: clean_(PROJECT_MAP[code].projectName),
+      contractId: clean_(PROJECT_MAP[code].contractId),
+      sectionName: clean_(PROJECT_MAP[code].sectionName)
+    };
+  }
+
+  for (i = 0; i < discovered.length; i += 1) {
+    var item = discovered[i];
+    map[item.contractId] = {
+      projectName: item.projectName,
+      contractId: item.contractId,
+      sectionName: "Secao " + item.contractId
+    };
+  }
+
+  if (!map["ADMIN-INTERNO"]) {
+    map["ADMIN-INTERNO"] = {
+      projectName: "Administrativo/Interno",
+      contractId: "ADMIN-INTERNO",
+      sectionName: "Secao Administrativo/Interno"
+    };
+  }
+
+  PROJECT_MAP_CACHE = map;
+  return map;
+}
+
+function readProjectsFromContractsSheet_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONTRACTS_SHEET_NAME);
+  if (!sheet) {
+    return [];
+  }
+
+  var values = sheet.getDataRange().getValues();
+  if (!values || values.length < 2) {
+    return [];
+  }
+
+  var headers = values[0].map(normalizeHeaderText_);
+  var contractIdIndex = findHeaderIndex_(headers, [
+    "id ct",
+    "id contrato",
+    "contrato",
+    "codigo contrato",
+    "codigo ct",
+    "ct"
+  ]);
+  var projectNameIndex = findHeaderIndex_(headers, [
+    "apelido",
+    "nome projeto",
+    "projeto",
+    "nome do projeto",
+    "nome"
+  ]);
+  var statusIndex = findHeaderIndex_(headers, ["status", "situacao", "situação", "ativo"]);
+  var map = {};
+  var i;
+
+  for (i = 1; i < values.length; i += 1) {
+    var row = values[i];
+    if (isBlankRow_(row)) {
+      continue;
+    }
+
+    var contractId = contractIdIndex >= 0 ? extractContractId_(row[contractIdIndex]) : "";
+    if (!contractId) {
+      contractId = findContractIdInRow_(row);
+    }
+    if (!contractId) {
+      continue;
+    }
+    if (statusIndex >= 0 && shouldSkipContractByStatus_(row[statusIndex])) {
+      continue;
+    }
+
+    var projectName = projectNameIndex >= 0 ? clean_(row[projectNameIndex]) : "";
+    if (!projectName && contractIdIndex >= 0 && contractIdIndex + 1 < row.length) {
+      projectName = clean_(row[contractIdIndex + 1]);
+    }
+    if (!projectName && PROJECT_MAP[contractId]) {
+      projectName = clean_(PROJECT_MAP[contractId].projectName);
+    }
+    if (!projectName) {
+      projectName = contractId;
+    }
+
+    map[contractId] = {
+      projectName: projectName,
+      contractId: contractId,
+      sectionName: "Secao " + contractId
+    };
+  }
+
+  var list = [];
+  var code;
+  for (code in map) {
+    if (Object.prototype.hasOwnProperty.call(map, code)) {
+      list.push(map[code]);
+    }
+  }
+
+  list.sort(function (a, b) {
+    return compareContractId_(a.contractId, b.contractId);
+  });
+  return list;
+}
+
+function compareContractId_(a, b) {
+  var left = clean_(a).toUpperCase();
+  var right = clean_(b).toUpperCase();
+
+  if (left === "ADMIN-INTERNO") {
+    return right === "ADMIN-INTERNO" ? 0 : 1;
+  }
+  if (right === "ADMIN-INTERNO") {
+    return -1;
+  }
+
+  return left.localeCompare(right);
+}
+
+function normalizeHeaderText_(value) {
+  return normalizeText_(value).replace(/\s+/g, " ").trim();
+}
+
+function findHeaderIndex_(headers, aliases) {
+  var i;
+  var j;
+  for (i = 0; i < headers.length; i += 1) {
+    for (j = 0; j < aliases.length; j += 1) {
+      var alias = normalizeHeaderText_(aliases[j]);
+      if (headers[i] === alias || headers[i].indexOf(alias) >= 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+function isBlankRow_(row) {
+  var i;
+  for (i = 0; i < row.length; i += 1) {
+    if (clean_(row[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function findContractIdInRow_(row) {
+  var i;
+  for (i = 0; i < row.length; i += 1) {
+    var id = extractContractId_(row[i]);
+    if (id) {
+      return id;
+    }
+  }
+  return "";
+}
+
+function extractContractId_(value) {
+  var text = clean_(value).toUpperCase();
+  if (!text) {
+    return "";
+  }
+
+  var match = text.match(/CT[\s\-_/]*([0-9]{2,6})/);
+  if (!match) {
+    return "";
+  }
+
+  var numberPart = String(match[1]).replace(/^0+/, "");
+  if (!numberPart) {
+    numberPart = "0";
+  }
+
+  return "CT-" + numberPart;
+}
+
+function shouldSkipContractByStatus_(value) {
+  var status = normalizeText_(value);
+  if (!status) {
+    return false;
+  }
+
+  if (
+    status.indexOf("cancel") >= 0 ||
+    status.indexOf("encerr") >= 0 ||
+    status.indexOf("finaliz") >= 0 ||
+    status.indexOf("arquiv") >= 0 ||
+    status.indexOf("inativ") >= 0
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function buildRefFromWbs_(contractId, wbs) {
@@ -972,7 +1212,7 @@ function calculateDelayDays_(plannedEndValue, referenceValue) {
 }
 
 function resolveProjectInfo_(projectCode, projectLabel) {
-  var mapValue = PROJECT_MAP[projectCode];
+  var mapValue = getProjectMap_()[projectCode];
   if (mapValue) {
     return mapValue;
   }
@@ -1180,17 +1420,7 @@ function getTz_() {
 }
 
 function buildConfigPayload_() {
-  var projects = [];
-  var code;
-
-  for (code in PROJECT_MAP) {
-    if (Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
-      projects.push({
-        code: code,
-        label: PROJECT_MAP[code].projectName
-      });
-    }
-  }
+  var projects = getProjectsForConfig_();
 
   return {
     status: "ok",
@@ -1202,11 +1432,12 @@ function buildConfigPayload_() {
 
 function buildRefOptionsByProject_() {
   var optionsByProject = {};
+  var projectMap = getProjectMap_();
   var code;
 
-  for (code in PROJECT_MAP) {
-    if (Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
-      optionsByProject[PROJECT_MAP[code].contractId] = [];
+  for (code in projectMap) {
+    if (Object.prototype.hasOwnProperty.call(projectMap, code)) {
+      optionsByProject[projectMap[code].contractId] = [];
     }
   }
 
