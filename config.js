@@ -3,16 +3,15 @@ window.VM_FORM_CONFIG = {
     "https://script.google.com/macros/s/AKfycbzX7ZlICKM8wsdxc5vAlQqnPh7KVOwy-wejZOQuIkP6M5skKHEZRKcc3ppX046Zxlpiwg/exec",
 
   profissionais: [
-    "Viviane",
-    "Profissional 2",
-    "Profissional 3",
-    "Profissional 4",
-    "Profissional 5",
-    "Profissional 6",
-    "Profissional 7",
-    "Profissional 8",
-    "Profissional 9",
-    "Profissional 10"
+    "Alencar",
+    "Breno",
+    "Ester",
+    "Fran",
+    "Lucas",
+    "Lud",
+    "Luiza",
+    "Uly",
+    "Vivi"
   ],
 
   projetos: [
