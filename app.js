@@ -12,6 +12,7 @@
 
   var projectMap = {};
   var projectList = cfg.projetos || [];
+  var refOptionsByProject = normalizeRefOptions(cfg.refOptions || {});
   var i;
   for (i = 0; i < projectList.length; i += 1) {
     if (projectList[i] && projectList[i].code) {
@@ -33,6 +34,8 @@
 
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
+
+    loadRefOptionsFromServer();
   }
 
   function populateProfessionals() {
@@ -84,7 +87,12 @@
       sectionEl.innerHTML =
         "<h3>Secao do projeto: " + escapeHtml(project.label) + "</h3>" +
         '<div class="field">' +
-        '<p class="field-title">Campo 4 - O que voce fez neste projeto hoje?</p>' +
+        '<label for="ref-' + key + '">Campo 4A - Tarefa EAP (REF EAP)</label>' +
+        '<select id="ref-' + key + '" required>' + buildRefOptionsHtml(project.code) + "</select>" +
+        '<p class="hint">Obrigatorio para rastreabilidade.</p>' +
+        "</div>" +
+        '<div class="field">' +
+        '<p class="field-title">Campo 4B - Categoria do que voce fez neste projeto hoje</p>' +
         '<div class="option-list">' + buildTaskOptionsHtml(key) + "</div>" +
         "</div>" +
         '<div class="field">' +
@@ -108,6 +116,34 @@
       projectSectionsEl.appendChild(sectionEl);
       wireBlockToggle(key);
     });
+  }
+
+  function buildRefOptionsHtml(projectCode) {
+    var options = getRefOptionsForProject(projectCode);
+    var html = ['<option value="">Selecione...</option>'];
+    var i;
+
+    for (i = 0; i < options.length; i += 1) {
+      html.push(
+        '<option value="' + escapeAttr(options[i].value) + '">' + escapeHtml(options[i].label) + "</option>"
+      );
+    }
+
+    if (!options.length) {
+      html.push(
+        '<option value="ADHOC-' +
+          escapeAttr(sanitizeKey(projectCode)) +
+          '">ADHOC - tarefa nao listada</option>'
+      );
+    }
+
+    return html.join("");
+  }
+
+  function getRefOptionsForProject(projectCode) {
+    var project = projectMap[projectCode];
+    var key = project ? project.code : projectCode;
+    return refOptionsByProject[key] || [];
   }
 
   function buildTaskOptionsHtml(key) {
@@ -205,13 +241,22 @@
       for (taskIndex = 0; taskIndex < checkedTaskEls.length; taskIndex += 1) {
         checkedTasks.push(checkedTaskEls[taskIndex].value);
       }
+      var refEl = document.getElementById("ref-" + key);
+      var refEap = refEl ? cleanText(refEl.value) : "";
+      var refLabel = "";
+      if (refEl && refEl.selectedIndex >= 0) {
+        refLabel = cleanText(refEl.options[refEl.selectedIndex].text);
+      }
       var statusEl = document.querySelector('input[name="status-' + key + '"]:checked');
       var blockEl = document.querySelector('input[name="block-' + key + '"]:checked');
       var blockDesc = ((document.getElementById("block-desc-" + key) || {}).value || "").trim();
       var obs = ((document.getElementById("obs-" + key) || {}).value || "").trim();
 
+      if (!refEap) {
+        errors.push("Campo REF EAP obrigatorio na secao " + project.label + ".");
+      }
       if (!checkedTasks.length) {
-        errors.push("Campo 4 obrigatorio na secao " + project.label + ".");
+        errors.push("Campo 4B obrigatorio na secao " + project.label + ".");
       }
       if (!statusEl) {
         errors.push("Campo 5 obrigatorio na secao " + project.label + ".");
@@ -226,6 +271,8 @@
       sections.push({
         projectCode: code,
         projectLabel: project.label,
+        refEap: refEap,
+        refLabel: refLabel,
         tasks: checkedTasks,
         statusCode: statusEl ? statusEl.value : "",
         statusLabel: statusEl ? statusEl.dataset.label : "",
@@ -323,6 +370,65 @@
       });
   }
 
+  function loadRefOptionsFromServer() {
+    var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+    if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      return;
+    }
+
+    var callbackName = "vmFormConfigCb_" + String(Date.now());
+    var script = document.createElement("script");
+    var settled = false;
+
+    function finish() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      try {
+        delete window[callbackName];
+      } catch (err) {
+        window[callbackName] = undefined;
+      }
+      if (script && script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function (data) {
+      try {
+        if (data && data.status === "ok" && data.refOptions) {
+          refOptionsByProject = normalizeRefOptions(data.refOptions);
+          renderProjectSections(getSelectedProjectCodes());
+        }
+      } finally {
+        finish();
+      }
+    };
+
+    script.async = true;
+    script.src = buildUrlWithParams(appsScriptUrl, {
+      action: "config",
+      callback: callbackName,
+      _: Date.now()
+    });
+    script.onerror = finish;
+    document.body.appendChild(script);
+
+    setTimeout(finish, 12000);
+  }
+
+  function buildUrlWithParams(url, params) {
+    var query = [];
+    var key;
+    for (key in params) {
+      if (Object.prototype.hasOwnProperty.call(params, key)) {
+        query.push(encodeURIComponent(key) + "=" + encodeURIComponent(String(params[key])));
+      }
+    }
+    return url + (url.indexOf("?") >= 0 ? "&" : "?") + query.join("&");
+  }
+
   function resetForm() {
     formEl.reset();
     setDefaultDate();
@@ -337,6 +443,38 @@
       values.push(checked[i].value);
     }
     return values;
+  }
+
+  function normalizeRefOptions(raw) {
+    var normalized = {};
+    var projectCode;
+
+    if (!raw || typeof raw !== "object") {
+      return normalized;
+    }
+
+    for (projectCode in raw) {
+      if (!Object.prototype.hasOwnProperty.call(raw, projectCode)) {
+        continue;
+      }
+      if (!Array.isArray(raw[projectCode])) {
+        normalized[projectCode] = [];
+        continue;
+      }
+
+      normalized[projectCode] = raw[projectCode]
+        .map(function (item) {
+          return {
+            value: cleanText(item && item.value),
+            label: cleanText(item && item.label)
+          };
+        })
+        .filter(function (item) {
+          return item.value && item.label;
+        });
+    }
+
+    return normalized;
   }
 
   function setDefaultDate() {
@@ -372,5 +510,12 @@
 
   function escapeAttr(value) {
     return escapeHtml(value);
+  }
+
+  function cleanText(value) {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    return String(value).trim();
   }
 })();

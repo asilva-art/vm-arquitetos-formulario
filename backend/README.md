@@ -5,6 +5,8 @@
 - Continua recebendo o formulario diario e gravando em `⚙️ EXECUÇÃO`.
 - Cria e mantem a aba `📌 CONTROLE_EAP_ATUAL` (uma linha por tarefa da EAP).
 - Sincroniza automaticamente o controle a cada envio diario.
+- Exige `REF EAP` por secao do formulario (rastreabilidade fina).
+- Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
 

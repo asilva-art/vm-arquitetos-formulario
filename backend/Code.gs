@@ -90,42 +90,33 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.action) {
     action = e.parameter.action;
   }
+  var callback = e && e.parameter ? e.parameter.callback : "";
+  var response;
 
   if (action === "health") {
-    return json_({
+    response = {
       status: "ok",
       message: "Backend ativo.",
       controlSheet: CONTROL_SHEET_NAME
-    });
+    };
+    return jsonOrJsonp_(response, callback);
   }
 
   if (action === "config") {
-    var projects = [];
-    var code;
-    for (code in PROJECT_MAP) {
-      if (Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
-        projects.push({
-          code: code,
-          label: PROJECT_MAP[code].projectName
-        });
-      }
-    }
-
-    return json_({
-      status: "ok",
-      projects: projects,
-      statuses: STATUS_CONTROL
-    });
+    response = buildConfigPayload_();
+    return jsonOrJsonp_(response, callback);
   }
 
   if (action === "resumo_controle") {
-    return json_(resumoControleEapAtual());
+    response = resumoControleEapAtual();
+    return jsonOrJsonp_(response, callback);
   }
 
-  return json_({
+  response = {
     status: "error",
     message: "Acao invalida."
-  });
+  };
+  return jsonOrJsonp_(response, callback);
 }
 
 function doPost(e) {
@@ -240,6 +231,8 @@ function normalizeProject_(item, sectionNumber) {
 
   var projectCode = clean_(item.projectCode);
   var projectLabel = clean_(item.projectLabel);
+  var refEap = clean_(item.refEap);
+  var refLabel = clean_(item.refLabel);
   var tasks = [];
   var sourceTasks = item.tasks || [];
   var i;
@@ -256,6 +249,9 @@ function normalizeProject_(item, sectionNumber) {
   }
   if (!tasks.length) {
     throw new Error("Campo 4 obrigatorio na secao " + sectionNumber + ".");
+  }
+  if (!refEap) {
+    throw new Error("Campo REF EAP obrigatorio na secao " + sectionNumber + ".");
   }
 
   var statusCode = clean_(item.statusCode);
@@ -279,6 +275,8 @@ function normalizeProject_(item, sectionNumber) {
   return {
     projectCode: projectCode,
     projectLabel: projectLabel || projectCode,
+    refEap: refEap,
+    refLabel: refLabel,
     tasks: tasks,
     statusText: statusLabel,
     isBlocked: isBlocked,
@@ -471,10 +469,13 @@ function buildSubmissionRecords_(input, controlRows) {
     var projectInfo = resolveProjectInfo_(item.projectCode, item.projectLabel);
     var phase = inferPhase_(item.tasks);
     var taskText = item.tasks.join(" | ");
-    var refEap = findBestRefEap_(controlRows, projectInfo.contractId, phase, taskText);
+    var refEap = clean_(item.refEap);
 
     if (!refEap) {
-      refEap = buildRefEap_(projectInfo.contractId, phase);
+      refEap = findBestRefEap_(controlRows, projectInfo.contractId, phase, taskText);
+      if (!refEap) {
+        refEap = buildRefEap_(projectInfo.contractId, phase);
+      }
     }
 
     records.push({
@@ -484,6 +485,7 @@ function buildSubmissionRecords_(input, controlRows) {
       phase: phase,
       taskText: taskText,
       refEap: refEap,
+      refLabel: clean_(item.refLabel),
       statusText: item.statusText,
       statusClass: classifyControlStatus_(item.statusText, item.isBlocked),
       isBlocked: item.isBlocked,
@@ -944,8 +946,118 @@ function getTz_() {
   return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || DEFAULT_TZ;
 }
 
+function buildConfigPayload_() {
+  var projects = [];
+  var code;
+
+  for (code in PROJECT_MAP) {
+    if (Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
+      projects.push({
+        code: code,
+        label: PROJECT_MAP[code].projectName
+      });
+    }
+  }
+
+  return {
+    status: "ok",
+    projects: projects,
+    statuses: STATUS_CONTROL,
+    refOptions: buildRefOptionsByProject_()
+  };
+}
+
+function buildRefOptionsByProject_() {
+  var optionsByProject = {};
+  var code;
+
+  for (code in PROJECT_MAP) {
+    if (Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
+      optionsByProject[PROJECT_MAP[code].contractId] = [];
+    }
+  }
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONTROL_SHEET_NAME);
+  if (!sheet) {
+    optionsByProject["ADMIN-INTERNO"] = optionsByProject["ADMIN-INTERNO"] || [];
+    optionsByProject["ADMIN-INTERNO"].push({
+      value: "ADMININTERNO-OT-01",
+      label: "ADMININTERNO-OT-01 | Outros | Atividade administrativa",
+      status: STATUS_CONTROL.EM_ANDAMENTO
+    });
+    return optionsByProject;
+  }
+
+  var rows = readControlRows_(sheet);
+  var i;
+  for (i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var contractId = clean_(row[2]);
+    var refEap = clean_(row[3]);
+    var phase = clean_(row[4]);
+    var task = clean_(row[5]);
+    var status = clean_(row[9]);
+
+    if (!contractId || !refEap) {
+      continue;
+    }
+    if (status === STATUS_CONTROL.CONCLUIDA) {
+      continue;
+    }
+
+    if (!optionsByProject[contractId]) {
+      optionsByProject[contractId] = [];
+    }
+
+    optionsByProject[contractId].push({
+      value: refEap,
+      label: refEap + " | " + phase + " | " + task,
+      status: status
+    });
+  }
+
+  for (code in optionsByProject) {
+    if (Object.prototype.hasOwnProperty.call(optionsByProject, code)) {
+      optionsByProject[code].sort(function (a, b) {
+        var aOrder = controlStatusOrder_(a.status);
+        var bOrder = controlStatusOrder_(b.status);
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder;
+        }
+        return String(a.label).localeCompare(String(b.label));
+      });
+    }
+  }
+
+  return optionsByProject;
+}
+
+function controlStatusOrder_(status) {
+  if (status === STATUS_CONTROL.EM_ANDAMENTO) {
+    return 1;
+  }
+  if (status === STATUS_CONTROL.BLOQUEADA) {
+    return 2;
+  }
+  if (status === STATUS_CONTROL.NAO_INICIADA) {
+    return 3;
+  }
+  if (status === STATUS_CONTROL.CONCLUIDA) {
+    return 4;
+  }
+  return 5;
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function jsonOrJsonp_(obj, callback) {
+  var cb = clean_(callback);
+  if (cb && /^[A-Za-z0-9_\\.]+$/.test(cb)) {
+    return ContentService.createTextOutput(cb + "(" + JSON.stringify(obj) + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return json_(obj);
 }
 
 // -------------------------
