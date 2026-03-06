@@ -10,19 +10,22 @@
 - Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
+- Inclui reset total para reconstruir a base com `EAP_PADRAO_V1` (10 fases / 48 itens).
 
 ## Arquivos
 
 - `Code.gs`: backend completo (envio + controle operacional).
 - `appsscript.json`: manifesto do projeto Apps Script.
 
-## Primeira ativacao (1 vez)
+## Primeira ativacao (recomendada para base limpa)
 
 1. No Apps Script, substituir `Code.gs` pelo arquivo deste projeto.
 2. Salvar.
-3. Executar a funcao `setupControleEapAtual`.
-4. Executar a funcao `sincronizarControleComExecucaoHistorica`.
-5. Conferir a nova aba `📌 CONTROLE_EAP_ATUAL` na planilha.
+3. Executar a funcao `resetBancoDoZeroEapPadrao`.
+4. Conferir:
+   - `⚙️ EXECUÇÃO` limpa (dados antigos removidos)
+   - `📅 EAP - LINHA DE BASE` recriada com a EAP padrao
+   - `📌 CONTROLE_EAP_ATUAL` recriada com a EAP padrao
 
 ## Operacao diaria
 
@@ -34,6 +37,7 @@
 ## Funcoes manuais disponiveis
 
 - `setupControleEapAtual`: cria/prepara a aba de controle e carrega tarefas da EAP.
+- `resetBancoDoZeroEapPadrao`: apaga dados operacionais e recria EAP/controle com o padrao.
 - `sincronizarControleComExecucaoHistorica`: reprocesa historico da EXECUCAO para atualizar controle.
 - `resumoControleEapAtual`: retorna contagem por status (nao iniciada, andamento, concluida, bloqueada).
 

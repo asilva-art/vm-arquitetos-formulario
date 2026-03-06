@@ -31,6 +31,21 @@ var CONTROL_HEADERS = [
   "ORIGEM"
 ];
 
+var EAP_HEADERS = [
+  "PROJETO",
+  "ID CT",
+  "FASE",
+  "SUBFASE",
+  "TAREFA",
+  "PRAZO DU",
+  "DEPENDENCIA",
+  "% CONTRATUAL",
+  "TIPO",
+  "MARCO",
+  "OBS",
+  "ORIGEM"
+];
+
 var STATUS_CONTROL = {
   NAO_INICIADA: "NAO INICIADA",
   EM_ANDAMENTO: "EM ANDAMENTO",
@@ -84,6 +99,57 @@ var PHASE_CODE = {
   Comunicacao: "CM",
   Outros: "OT"
 };
+
+var EAP_TEMPLATE_ITEMS = [
+  { wbs: "1.1.1", phase: "Estudos Preliminares", subphase: "Coleta de Dados", type: "TAREFA", task: "Elaboracao do Briefing Documentado" },
+  { wbs: "1.1.2", phase: "Estudos Preliminares", subphase: "Coleta de Dados", type: "TAREFA", task: "Geracao da Analise do Terreno" },
+  { wbs: "1.1.3", phase: "Estudos Preliminares", subphase: "Coleta de Dados", type: "TAREFA", task: "Levantamento da Analise Legal" },
+  { wbs: "2.1.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", subphase: "Concepcao Inicial", type: "TAREFA", task: "Estudo de Implantacao" },
+  { wbs: "2.1.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", subphase: "Concepcao Inicial", type: "TAREFA", task: "Planta de Layout" },
+  { wbs: "2.2.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", subphase: "Revisao e Aprovacao", type: "TAREFA", task: "Execucao de Revisoes (ate 2 rodadas)" },
+  { wbs: "2.2.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", subphase: "Revisao e Aprovacao", type: "MARCO", task: "Aprovacao do Layout" },
+  { wbs: "3.1.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", subphase: "Desenvolvimento Volumetrico", type: "TAREFA", task: "Modelagem de Imagens 3D Externas" },
+  { wbs: "3.1.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", subphase: "Desenvolvimento Volumetrico", type: "TAREFA", task: "Pre-selecao de Materiais Externos" },
+  { wbs: "3.1.3", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", subphase: "Desenvolvimento Volumetrico", type: "TAREFA", task: "Estudo de Alternativa de Volumetria (se solicitada)" },
+  { wbs: "3.2.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", subphase: "Revisao e Aprovacao", type: "TAREFA", task: "Execucao de Revisoes (ate 2 rodadas)" },
+  { wbs: "3.2.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", subphase: "Revisao e Aprovacao", type: "MARCO", task: "Aprovacao da Volumetria e Materiais Externos" },
+  { wbs: "4.1.1", phase: "Projeto Legal", subphase: "Preparacao para Aprovacao", type: "TAREFA", task: "Elaboracao do Projeto para Aprovacao na Prefeitura" },
+  { wbs: "4.2.1", phase: "Projeto Legal", subphase: "Protocolo e Acompanhamento", type: "TAREFA", task: "Acompanhamento do Protocolo na Prefeitura" },
+  { wbs: "4.2.2", phase: "Projeto Legal", subphase: "Protocolo e Acompanhamento", type: "MARCO", task: "Projeto Legal Aprovado" },
+  { wbs: "5.1.1", phase: "Anteprojeto - Etapa III (Interiores)", subphase: "Concepcao de Interiores", type: "TAREFA", task: "Modelagem de Imagens 3D Internas" },
+  { wbs: "5.1.2", phase: "Anteprojeto - Etapa III (Interiores)", subphase: "Concepcao de Interiores", type: "TAREFA", task: "Pre-selecao de Materiais Internos" },
+  { wbs: "5.1.3", phase: "Anteprojeto - Etapa III (Interiores)", subphase: "Concepcao de Interiores", type: "TAREFA", task: "Estudo de Alternativa por Ambiente (se solicitada)" },
+  { wbs: "5.2.1", phase: "Anteprojeto - Etapa III (Interiores)", subphase: "Revisao e Aprovacao", type: "TAREFA", task: "Execucao de Revisoes (ate 2 rodadas)" },
+  { wbs: "5.2.2", phase: "Anteprojeto - Etapa III (Interiores)", subphase: "Revisao e Aprovacao", type: "MARCO", task: "Aprovacao dos Interiores" },
+  { wbs: "6.1.1", phase: "Projeto Pre-Executivo", subphase: "Detalhamento Basico", type: "TAREFA", task: "Planta Layout Cotada" },
+  { wbs: "6.1.2", phase: "Projeto Pre-Executivo", subphase: "Detalhamento Basico", type: "TAREFA", task: "Detalhamento de Pedras" },
+  { wbs: "6.1.3", phase: "Projeto Pre-Executivo", subphase: "Detalhamento Basico", type: "TAREFA", task: "Quantitativo de Revestimentos" },
+  { wbs: "6.1.4", phase: "Projeto Pre-Executivo", subphase: "Detalhamento Basico", type: "TAREFA", task: "Lista de Loucas e Metais" },
+  { wbs: "7.1.1", phase: "Definicao de Materiais e Revisao 3D", subphase: "Selecao Final de Materiais", type: "TAREFA", task: "Acompanhamento em Lojas (ate 7 visitas)" },
+  { wbs: "7.2.1", phase: "Definicao de Materiais e Revisao 3D", subphase: "Visualizacao Final", type: "TAREFA", task: "Execucao da Revisao Final 3D" },
+  { wbs: "7.2.2", phase: "Definicao de Materiais e Revisao 3D", subphase: "Visualizacao Final", type: "MARCO", task: "Aprovacao Final 3D" },
+  { wbs: "8.1.1", phase: "Projeto Executivo", subphase: "Desenhos Arquitetonicos", type: "TAREFA", task: "Planta de Situacao" },
+  { wbs: "8.1.2", phase: "Projeto Executivo", subphase: "Desenhos Arquitetonicos", type: "TAREFA", task: "Planta de Implantacao" },
+  { wbs: "8.1.3", phase: "Projeto Executivo", subphase: "Desenhos Arquitetonicos", type: "TAREFA", task: "Planta de Cobertura" },
+  { wbs: "8.1.4", phase: "Projeto Executivo", subphase: "Desenhos Arquitetonicos", type: "TAREFA", task: "Cortes" },
+  { wbs: "8.1.5", phase: "Projeto Executivo", subphase: "Desenhos Arquitetonicos", type: "TAREFA", task: "Fachadas" },
+  { wbs: "8.2.1", phase: "Projeto Executivo", subphase: "Desenhos Complementares", type: "TAREFA", task: "Pontos Eletricos" },
+  { wbs: "8.2.2", phase: "Projeto Executivo", subphase: "Desenhos Complementares", type: "TAREFA", task: "Pontos Hidraulicos" },
+  { wbs: "8.2.3", phase: "Projeto Executivo", subphase: "Desenhos Complementares", type: "TAREFA", task: "Planta de Forro" },
+  { wbs: "8.2.4", phase: "Projeto Executivo", subphase: "Desenhos Complementares", type: "TAREFA", task: "Planta de Piso" },
+  { wbs: "8.2.5", phase: "Projeto Executivo", subphase: "Desenhos Complementares", type: "TAREFA", task: "Projeto Luminotecnico" },
+  { wbs: "8.3.1", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhamento de Escadas e Rampas" },
+  { wbs: "8.3.2", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhamento de Esquadrias" },
+  { wbs: "8.3.3", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhes Construtivos" },
+  { wbs: "8.3.4", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhamento de Gradil" },
+  { wbs: "8.3.5", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhamento de Areas Molhadas" },
+  { wbs: "8.3.6", phase: "Projeto Executivo", subphase: "Detalhamentos Construtivos", type: "TAREFA", task: "Detalhamento de Guarda-corpo" },
+  { wbs: "9.1.1", phase: "Detalhamentos Complementares", subphase: "Detalhamentos Especificos", type: "TAREFA", task: "Detalhamento de Vidros e Espelhos" },
+  { wbs: "9.1.2", phase: "Detalhamentos Complementares", subphase: "Detalhamentos Especificos", type: "TAREFA", task: "Design e Detalhamento de Moveis" },
+  { wbs: "9.1.3", phase: "Detalhamentos Complementares", subphase: "Detalhamentos Especificos", type: "TAREFA", task: "Detalhamentos Complementares Especificos" },
+  { wbs: "10.1.1", phase: "Acompanhamento de Obra e Producao", subphase: "Acompanhamento de Obra", type: "TAREFA", task: "Realizacao de Visitas Tecnicas em Obra (2 visitas)" },
+  { wbs: "10.2.1", phase: "Acompanhamento de Obra e Producao", subphase: "Acompanhamento de Producao", type: "TAREFA", task: "Realizacao de Acompanhamento de Producao (1 visita)" }
+];
 
 function doGet(e) {
   var action = "health";
@@ -298,11 +364,58 @@ function getExecutionSheet_() {
 }
 
 function getEapSheet_() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EAP_SHEET_NAME);
+  return getOrCreateEapSheet_();
+}
+
+function getOrCreateEapSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(EAP_SHEET_NAME);
   if (!sheet) {
-    throw new Error("Aba " + EAP_SHEET_NAME + " nao encontrada.");
+    sheet = spreadsheet.insertSheet(EAP_SHEET_NAME);
   }
+  ensureEapHeader_(sheet);
   return sheet;
+}
+
+function ensureEapHeader_(sheet) {
+  var headerRow = EAP_DATA_START_ROW - 1;
+  var current = sheet.getRange(headerRow, 1, 1, EAP_HEADERS.length).getValues()[0];
+  var needsUpdate = false;
+  var i;
+
+  for (i = 0; i < EAP_HEADERS.length; i += 1) {
+    if (clean_(current[i]) !== EAP_HEADERS[i]) {
+      needsUpdate = true;
+      break;
+    }
+  }
+
+  if (needsUpdate) {
+    sheet.getRange(headerRow, 1, 1, EAP_HEADERS.length).setValues([EAP_HEADERS]);
+    sheet.getRange(headerRow, 1, 1, EAP_HEADERS.length).setFontWeight("bold");
+    sheet.setFrozenRows(headerRow);
+  }
+}
+
+function writeEapRows_(sheet, rows) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= EAP_DATA_START_ROW) {
+    sheet.getRange(EAP_DATA_START_ROW, 1, lastRow - EAP_DATA_START_ROW + 1, EAP_HEADERS.length).clearContent();
+  }
+
+  if (rows && rows.length) {
+    sheet.getRange(EAP_DATA_START_ROW, 1, rows.length, EAP_HEADERS.length).setValues(rows);
+  }
+}
+
+function clearExecutionData_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < EXEC_DATA_START_ROW) {
+    return 0;
+  }
+  var rowsToClear = lastRow - EXEC_DATA_START_ROW + 1;
+  sheet.getRange(EXEC_DATA_START_ROW, 1, rowsToClear, 17).clearContent();
+  return rowsToClear;
 }
 
 function getOrCreateControlSheet_() {
@@ -363,7 +476,7 @@ function prepareControlContext_() {
   var rows = readControlRows_(controlSheet);
 
   if (!rows.length) {
-    rows = seedControlRowsFromEap_();
+    rows = seedControlRowsFromStandardTemplate_();
     writeControlRows_(controlSheet, rows);
   }
 
@@ -374,67 +487,121 @@ function prepareControlContext_() {
 }
 
 function seedControlRowsFromEap_() {
-  var eapSheet = getEapSheet_();
-  var lastRow = eapSheet.getLastRow();
-  if (lastRow < EAP_DATA_START_ROW) {
-    return [];
-  }
-
-  var values = eapSheet.getRange(EAP_DATA_START_ROW, 1, lastRow - EAP_DATA_START_ROW + 1, 12).getValues();
-  var counters = {};
-  var controlRows = [];
-  var i;
-
-  for (i = 0; i < values.length; i += 1) {
-    var row = values[i];
-    var projectName = clean_(row[0]);
-    var contractId = clean_(row[1]);
-    var phase = clean_(row[2]);
-    var task = clean_(row[4]);
-    var prazoDu = clean_(row[5]);
-
-    if (!isValidEapTask_(projectName, contractId, phase, task)) {
-      continue;
-    }
-
-    var phaseCode = PHASE_CODE[phase] || "OT";
-    var counterKey = contractId + "|" + phaseCode;
-    counters[counterKey] = (counters[counterKey] || 0) + 1;
-
-    var ref = compactContractId_(contractId) + "-" + phaseCode + "-" + pad_(counters[counterKey], 2);
-    controlRows.push(buildControlRow_({
-      projectName: projectName,
-      contractId: contractId,
-      refEap: ref,
-      phase: phase,
-      task: task,
-      prazoDu: prazoDu,
-      status: STATUS_CONTROL.NAO_INICIADA,
-      origem: "EAP_BASE"
-    }));
-  }
-
-  return controlRows;
+  // Compatibilidade: o controle agora nasce da EAP padrao em codigo.
+  return seedControlRowsFromStandardTemplate_();
 }
 
-function isValidEapTask_(projectName, contractId, phase, task) {
-  if (!projectName || !contractId || !phase || !task) {
-    return false;
+function seedControlRowsFromStandardTemplate_() {
+  return buildControlRowsFromStandardTemplate_();
+}
+
+function buildBaselineRowsFromStandardTemplate_() {
+  var rows = [];
+  var projects = getActiveContractProjects_();
+  var i;
+  var j;
+
+  for (i = 0; i < projects.length; i += 1) {
+    var project = projects[i];
+    for (j = 0; j < EAP_TEMPLATE_ITEMS.length; j += 1) {
+      var item = EAP_TEMPLATE_ITEMS[j];
+      rows.push([
+        project.projectName,
+        project.contractId,
+        item.phase,
+        item.subphase,
+        item.task,
+        "",
+        "",
+        "",
+        item.type,
+        item.type === "MARCO" ? "SIM" : "NAO",
+        "WBS " + item.wbs,
+        "EAP_PADRAO_V1"
+      ]);
+    }
   }
 
-  if (projectName.indexOf("▶") === 0) {
-    return false;
+  // Mantem opcao de trabalho administrativo/interno.
+  rows.push([
+    "Administrativo/Interno",
+    "ADMIN-INTERNO",
+    "Administrativo/Interno",
+    "Rotinas Internas",
+    "Atividades administrativas internas",
+    "",
+    "",
+    "",
+    "TAREFA",
+    "NAO",
+    "WBS INT.1",
+    "EAP_PADRAO_V1"
+  ]);
+
+  return rows;
+}
+
+function buildControlRowsFromStandardTemplate_() {
+  var rows = [];
+  var projects = getActiveContractProjects_();
+  var i;
+  var j;
+
+  for (i = 0; i < projects.length; i += 1) {
+    var project = projects[i];
+    for (j = 0; j < EAP_TEMPLATE_ITEMS.length; j += 1) {
+      var item = EAP_TEMPLATE_ITEMS[j];
+      rows.push(buildControlRow_({
+        projectName: project.projectName,
+        contractId: project.contractId,
+        refEap: buildRefFromWbs_(project.contractId, item.wbs),
+        phase: item.phase,
+        task: item.task,
+        prazoDu: "",
+        status: STATUS_CONTROL.NAO_INICIADA,
+        origem: "EAP_PADRAO_V1"
+      }));
+    }
   }
 
-  if (projectName.indexOf("VM +") === 0) {
-    return false;
+  rows.push(buildControlRow_({
+    projectName: "Administrativo/Interno",
+    contractId: "ADMIN-INTERNO",
+    refEap: "ADMININTERNO-WBS-INT_1",
+    phase: "Administrativo/Interno",
+    task: "Atividades administrativas internas",
+    prazoDu: "",
+    status: STATUS_CONTROL.NAO_INICIADA,
+    origem: "EAP_PADRAO_V1"
+  }));
+
+  return rows;
+}
+
+function getActiveContractProjects_() {
+  var list = [];
+  var code;
+
+  for (code in PROJECT_MAP) {
+    if (!Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
+      continue;
+    }
+    if (String(code).indexOf("CT-") !== 0) {
+      continue;
+    }
+    list.push(PROJECT_MAP[code]);
   }
 
-  if (contractId.indexOf("CT-") !== 0 && contractId.indexOf("ADMIN") !== 0) {
-    return false;
-  }
+  list.sort(function (a, b) {
+    return String(a.contractId).localeCompare(String(b.contractId));
+  });
+  return list;
+}
 
-  return true;
+function buildRefFromWbs_(contractId, wbs) {
+  var compact = compactContractId_(contractId);
+  var wbsKey = clean_(wbs).replace(/[^A-Za-z0-9]+/g, "_");
+  return compact + "-WBS-" + wbsKey;
 }
 
 function buildControlRow_(data) {
@@ -987,8 +1154,8 @@ function buildRefOptionsByProject_() {
   if (!sheet) {
     optionsByProject["ADMIN-INTERNO"] = optionsByProject["ADMIN-INTERNO"] || [];
     optionsByProject["ADMIN-INTERNO"].push({
-      value: "ADMININTERNO-OT-01",
-      label: "ADMININTERNO-OT-01 | Outros | Atividade administrativa",
+      value: "ADMININTERNO-WBS-INT_1",
+      label: "ADMININTERNO-WBS-INT_1 | Administrativo/Interno | Atividades administrativas internas",
       status: STATUS_CONTROL.EM_ANDAMENTO
     });
     return optionsByProject;
@@ -1187,6 +1354,28 @@ function setupControleEapAtual() {
     sheet: CONTROL_SHEET_NAME,
     rows: context.rows.length,
     message: "Controle pronto para uso."
+  };
+}
+
+function resetBancoDoZeroEapPadrao() {
+  var executionSheet = getExecutionSheet_();
+  var eapSheet = getOrCreateEapSheet_();
+  var controlSheet = getOrCreateControlSheet_();
+
+  var clearedExecutionRows = clearExecutionData_(executionSheet);
+  var eapRows = buildBaselineRowsFromStandardTemplate_();
+  writeEapRows_(eapSheet, eapRows);
+
+  var controlRows = buildControlRowsFromStandardTemplate_();
+  writeControlRows_(controlSheet, controlRows);
+
+  return {
+    status: "ok",
+    message: "Reset completo concluido com a EAP padrao.",
+    templateVersion: "EAP_PADRAO_V1",
+    executionRowsCleared: clearedExecutionRows,
+    eapRowsCreated: eapRows.length,
+    controlRowsCreated: controlRows.length
   };
 }
 
