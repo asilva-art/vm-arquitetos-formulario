@@ -193,6 +193,43 @@ button:disabled {
   border-color: #f2a8a8;
 }
 
+.daily-summary {
+  margin-top: 14px;
+  border: 1px solid #cfd5cc;
+  border-radius: 10px;
+  background: #f4faf5;
+  padding: 12px;
+}
+
+.daily-summary h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.summary-meta {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.summary-project {
+  border: 1px solid #d8e3d5;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.summary-project h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.summary-project p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
 @media (max-width: 640px) {
   h1 {
     font-size: 23px;

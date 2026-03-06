@@ -8,7 +8,9 @@
   var projectListEl = document.getElementById("project-list");
   var projectSectionsEl = document.getElementById("project-sections");
   var feedbackEl = document.getElementById("feedback");
+  var dailySummaryEl = document.getElementById("daily-summary");
   var submitButtonEl = document.getElementById("submit-button");
+  var SUMMARY_CACHE_KEY = "vm_form_daily_summary_v1";
 
   var projectMap = {};
   var projectList = cfg.projetos || [];
@@ -36,6 +38,7 @@
     formEl.addEventListener("submit", handleSubmit);
 
     loadRefOptionsFromServer();
+    renderCachedSummary();
   }
 
   function populateProfessionals() {
@@ -310,6 +313,7 @@
             msg += " Linhas criadas: " + result.data.rowsCreated + ".";
           }
           showFeedback("ok", msg);
+          renderDailySummary(result.data.dailySummary || buildFallbackDailySummary(payload));
           resetForm();
           return;
         }
@@ -427,6 +431,185 @@
       }
     }
     return url + (url.indexOf("?") >= 0 ? "&" : "?") + query.join("&");
+  }
+
+  function renderDailySummary(summary) {
+    if (!dailySummaryEl || !summary || !Array.isArray(summary.projects) || !summary.projects.length) {
+      return;
+    }
+
+    var header = [
+      '<h2>Resumo rapido do dia</h2>',
+      '<p class="summary-meta">' +
+        escapeHtml(cleanText(summary.professional)) +
+        " | " +
+        escapeHtml(cleanText(summary.dateBr)) +
+        "</p>"
+    ].join("");
+
+    var projectsHtml = summary.projects
+      .map(function (project) {
+        return buildProjectSummaryHtml(project || {});
+      })
+      .join("");
+
+    dailySummaryEl.innerHTML = header + projectsHtml;
+    dailySummaryEl.classList.remove("hidden");
+    persistSummary(summary);
+  }
+
+  function buildProjectSummaryHtml(project) {
+    var snapshot = project.snapshot || {};
+    var todayItems = Array.isArray(project.todayItems) ? project.todayItems : [];
+    var nextTasks = Array.isArray(project.nextTasks) ? project.nextTasks : [];
+    var title = cleanText(project.projectName) || cleanText(project.contractId) || "Projeto";
+
+    return [
+      '<article class="summary-project">',
+      '<h3>' + escapeHtml(title) + "</h3>",
+      '<p><strong>Hoje:</strong> ' + escapeHtml(formatTodayItems(todayItems)) + "</p>",
+      '<p><strong>Pendencias:</strong> ' + escapeHtml(formatSnapshot(snapshot)) + "</p>",
+      '<p><strong>Proximo dia:</strong> ' + escapeHtml(formatNextTasks(nextTasks)) + "</p>",
+      "</article>"
+    ].join("");
+  }
+
+  function formatTodayItems(items) {
+    if (!items.length) {
+      return "Sem itens registrados.";
+    }
+
+    return items
+      .map(function (item) {
+        var line = cleanText(item.refEap) || "REF";
+        if (cleanText(item.taskText)) {
+          line += ": " + cleanText(item.taskText);
+        }
+        if (cleanText(item.statusText)) {
+          line += " (" + cleanText(item.statusText) + ")";
+        }
+        if (item.isBlocked && cleanText(item.blockReason)) {
+          line += " - bloqueio: " + cleanText(item.blockReason);
+        }
+        return line;
+      })
+      .join("; ");
+  }
+
+  function formatSnapshot(snapshot) {
+    var pendentes = Number(snapshot.pendentes || 0);
+    var andamento = Number(snapshot.emAndamento || 0);
+    var bloqueadas = Number(snapshot.bloqueada || 0);
+    var naoIniciadas = Number(snapshot.naoIniciada || 0);
+    var concluidas = Number(snapshot.concluida || 0);
+
+    if (!pendentes && !andamento && !bloqueadas && !naoIniciadas && !concluidas) {
+      return "Sem dados de pendencias para este projeto.";
+    }
+
+    return (
+      pendentes +
+      " pendentes (" +
+      andamento +
+      " em andamento, " +
+      bloqueadas +
+      " bloqueadas, " +
+      naoIniciadas +
+      " nao iniciadas, " +
+      concluidas +
+      " concluidas)"
+    );
+  }
+
+  function formatNextTasks(tasks) {
+    if (!tasks.length) {
+      return "Sem proximo item sugerido.";
+    }
+
+    return tasks
+      .map(function (task) {
+        var parts = [cleanText(task.refEap)];
+        if (cleanText(task.status)) {
+          parts.push(cleanText(task.status));
+        }
+        if (cleanText(task.task)) {
+          parts.push(cleanText(task.task));
+        }
+        return parts.filter(Boolean).join(" - ");
+      })
+      .join("; ");
+  }
+
+  function buildFallbackDailySummary(payload) {
+    var projects = (payload.projects || []).map(function (project) {
+      return {
+        projectCode: cleanText(project.projectCode),
+        contractId: cleanText(project.projectCode),
+        projectName: cleanText(project.projectLabel) || cleanText(project.projectCode),
+        todayItems: [
+          {
+            refEap: cleanText(project.refEap),
+            taskText: Array.isArray(project.tasks) ? project.tasks.join(" | ") : "",
+            statusText: cleanText(project.statusLabel),
+            isBlocked: cleanText(project.blockCode) && cleanText(project.blockCode) !== "NAO",
+            blockReason: cleanText(project.blockDescription)
+          }
+        ],
+        snapshot: {},
+        nextTasks: []
+      };
+    });
+
+    return {
+      professional: cleanText(payload.professional),
+      dateBr: formatIsoDateToBr(payload.date),
+      generatedAtBr: "",
+      projects: projects
+    };
+  }
+
+  function formatIsoDateToBr(value) {
+    var text = cleanText(value);
+    var match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return text;
+    }
+    return match[3] + "/" + match[2] + "/" + match[1];
+  }
+
+  function persistSummary(summary) {
+    try {
+      localStorage.setItem(SUMMARY_CACHE_KEY, JSON.stringify(summary));
+    } catch (err) {
+      // Ignora falha de cache no navegador.
+    }
+  }
+
+  function renderCachedSummary() {
+    var raw = "";
+    var parsed;
+
+    try {
+      raw = localStorage.getItem(SUMMARY_CACHE_KEY) || "";
+    } catch (err) {
+      return;
+    }
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      return;
+    }
+
+    if (!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) {
+      return;
+    }
+
+    renderDailySummary(parsed);
   }
 
   function resetForm() {

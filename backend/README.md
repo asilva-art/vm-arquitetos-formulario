@@ -7,6 +7,7 @@
 - Sincroniza automaticamente o controle a cada envio diario.
 - Exige `REF EAP` por secao do formulario (rastreabilidade fina).
 - Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
+- Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
 

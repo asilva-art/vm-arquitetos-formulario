@@ -141,19 +141,23 @@ function doPost(e) {
 
     executionSheet.getRange(executionStartRow, 1, executionRows.length, 17).setValues(executionRows);
 
-    syncControlFromRecords_(controlContext, records, {
+    var syncMeta = {
       dateBr: input.dateBr,
       professional: input.professional,
       formId: formId,
       updatedAtBr: Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy")
-    });
+    };
+
+    syncControlFromRecords_(controlContext, records, syncMeta);
+    var dailySummary = buildDailySubmissionSummary_(input, records, controlContext.rows);
 
     return json_({
       status: "ok",
       message: "Registro salvo com sucesso.",
       formId: formId,
       rowsCreated: executionRows.length,
-      controlUpdated: true
+      controlUpdated: true,
+      dailySummary: dailySummary
     });
   } catch (error) {
     return json_({
@@ -479,6 +483,8 @@ function buildSubmissionRecords_(input, controlRows) {
     }
 
     records.push({
+      projectCode: item.projectCode,
+      projectLabel: item.projectLabel || projectInfo.projectName,
       projectName: projectInfo.projectName,
       contractId: projectInfo.contractId,
       sectionName: projectInfo.sectionName,
@@ -1037,6 +1043,116 @@ function controlStatusOrder_(status) {
     return 1;
   }
   if (status === STATUS_CONTROL.BLOQUEADA) {
+    return 2;
+  }
+  if (status === STATUS_CONTROL.NAO_INICIADA) {
+    return 3;
+  }
+  if (status === STATUS_CONTROL.CONCLUIDA) {
+    return 4;
+  }
+  return 5;
+}
+
+function buildDailySubmissionSummary_(input, records, controlRows) {
+  var byContractId = {};
+  var contractOrder = [];
+  var i;
+
+  for (i = 0; i < records.length; i += 1) {
+    var record = records[i];
+    var contractId = clean_(record.contractId);
+
+    if (!byContractId[contractId]) {
+      byContractId[contractId] = {
+        projectCode: clean_(record.projectCode) || contractId,
+        contractId: contractId,
+        projectName: clean_(record.projectName) || contractId,
+        todayItems: [],
+        snapshot: {
+          total: 0,
+          naoIniciada: 0,
+          emAndamento: 0,
+          concluida: 0,
+          bloqueada: 0,
+          pendentes: 0
+        },
+        nextTasks: []
+      };
+      contractOrder.push(contractId);
+    }
+
+    byContractId[contractId].todayItems.push({
+      refEap: clean_(record.refEap),
+      taskText: clean_(record.taskText),
+      statusText: clean_(record.statusText),
+      isBlocked: !!record.isBlocked,
+      blockReason: clean_(record.blockReason)
+    });
+  }
+
+  for (i = 0; i < controlRows.length; i += 1) {
+    var row = controlRows[i];
+    var rowContractId = clean_(row[2]);
+    var projectSummary = byContractId[rowContractId];
+    if (!projectSummary) {
+      continue;
+    }
+
+    var status = clean_(row[9]);
+    projectSummary.snapshot.total += 1;
+    if (status === STATUS_CONTROL.NAO_INICIADA) {
+      projectSummary.snapshot.naoIniciada += 1;
+    } else if (status === STATUS_CONTROL.EM_ANDAMENTO) {
+      projectSummary.snapshot.emAndamento += 1;
+    } else if (status === STATUS_CONTROL.CONCLUIDA) {
+      projectSummary.snapshot.concluida += 1;
+    } else if (status === STATUS_CONTROL.BLOQUEADA) {
+      projectSummary.snapshot.bloqueada += 1;
+    }
+
+    if (status !== STATUS_CONTROL.CONCLUIDA) {
+      projectSummary.snapshot.pendentes += 1;
+      projectSummary.nextTasks.push({
+        refEap: clean_(row[3]),
+        phase: clean_(row[4]),
+        task: clean_(row[5]),
+        status: status
+      });
+    }
+  }
+
+  var projects = [];
+  for (i = 0; i < contractOrder.length; i += 1) {
+    var key = contractOrder[i];
+    var item = byContractId[key];
+
+    item.nextTasks.sort(function (a, b) {
+      var aOrder = nextTaskPriority_(a.status);
+      var bOrder = nextTaskPriority_(b.status);
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      return String(a.refEap).localeCompare(String(b.refEap));
+    });
+    item.nextTasks = item.nextTasks.slice(0, 3);
+
+    projects.push(item);
+  }
+
+  return {
+    professional: input.professional,
+    dateBr: input.dateBr,
+    generatedAtBr: Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy HH:mm"),
+    projects: projects
+  };
+}
+
+function nextTaskPriority_(status) {
+  if (status === STATUS_CONTROL.BLOQUEADA) {
+    return 1;
+  }
+  if (status === STATUS_CONTROL.EM_ANDAMENTO) {
     return 2;
   }
   if (status === STATUS_CONTROL.NAO_INICIADA) {
