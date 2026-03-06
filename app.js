@@ -10,7 +10,14 @@
   var feedbackEl = document.getElementById("feedback");
   var submitButtonEl = document.getElementById("submit-button");
 
-  var projectMap = new Map((cfg.projetos || []).map(function (p) { return [p.code, p]; }));
+  var projectMap = {};
+  var projectList = cfg.projetos || [];
+  var i;
+  for (i = 0; i < projectList.length; i += 1) {
+    if (projectList[i] && projectList[i].code) {
+      projectMap[projectList[i].code] = projectList[i];
+    }
+  }
 
   init();
 
@@ -68,7 +75,7 @@
     projectSectionsEl.innerHTML = "";
 
     selectedCodes.forEach(function (projectCode) {
-      var project = projectMap.get(projectCode) || { code: projectCode, label: projectCode };
+      var project = projectMap[projectCode] || { code: projectCode, label: projectCode };
       var key = sanitizeKey(project.code);
 
       var sectionEl = document.createElement("section");
@@ -150,16 +157,17 @@
     var blockWrap = document.getElementById("block-wrap-" + key);
     var blockDesc = document.getElementById("block-desc-" + key);
 
-    blockInputs.forEach(function (input) {
+    for (var i = 0; i < blockInputs.length; i += 1) {
+      var input = blockInputs[i];
       input.addEventListener("change", function () {
-        if (input.value === "NAO") {
+        if (this.value === "NAO") {
           blockWrap.classList.add("hidden");
           blockDesc.value = "";
         } else {
           blockWrap.classList.remove("hidden");
         }
       });
-    });
+    }
   }
 
   function handleSubmit(event) {
@@ -189,9 +197,14 @@
 
     var sections = [];
     selectedCodes.forEach(function (code) {
-      var project = projectMap.get(code) || { code: code, label: code };
+      var project = projectMap[code] || { code: code, label: code };
       var key = sanitizeKey(code);
-      var checkedTasks = Array.from(document.querySelectorAll('input[name="tasks-' + key + '"]:checked')).map(function (el) { return el.value; });
+      var checkedTaskEls = document.querySelectorAll('input[name="tasks-' + key + '"]:checked');
+      var checkedTasks = [];
+      var taskIndex;
+      for (taskIndex = 0; taskIndex < checkedTaskEls.length; taskIndex += 1) {
+        checkedTasks.push(checkedTaskEls[taskIndex].value);
+      }
       var statusEl = document.querySelector('input[name="status-' + key + '"]:checked');
       var blockEl = document.querySelector('input[name="block-' + key + '"]:checked');
       var blockDesc = ((document.getElementById("block-desc-" + key) || {}).value || "").trim();
@@ -268,7 +281,7 @@
       .catch(function (err) {
         showFeedback("error", err.message || "Nao foi possivel enviar. Tente novamente.");
       })
-      .finally(function () {
+      .then(function () {
         submitButtonEl.disabled = false;
         submitButtonEl.textContent = "Enviar registro diario";
       });
@@ -317,7 +330,13 @@
   }
 
   function getSelectedProjectCodes() {
-    return Array.from(document.querySelectorAll('input[name="projects"]:checked')).map(function (el) { return el.value; });
+    var checked = document.querySelectorAll('input[name="projects"]:checked');
+    var values = [];
+    var i;
+    for (i = 0; i < checked.length; i += 1) {
+      values.push(checked[i].value);
+    }
+    return values;
   }
 
   function setDefaultDate() {
