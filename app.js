@@ -8,6 +8,11 @@
   var dateEl = document.getElementById("work-date");
   var projectListEl = document.getElementById("project-list");
   var projectSectionsEl = document.getElementById("project-sections");
+  var bulkStatusEl = document.getElementById("bulk-status");
+  var bulkBlockEl = document.getElementById("bulk-block");
+  var applyBulkEl = document.getElementById("apply-bulk");
+  var repeatLastEl = document.getElementById("repeat-last");
+  var formChecklistEl = document.getElementById("form-checklist");
   var feedbackEl = document.getElementById("feedback");
   var portfolioFilterEl = document.getElementById("portfolio-filter");
   var portfolioCutoffEl = document.getElementById("portfolio-cutoff");
@@ -27,8 +32,16 @@
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
   var lastMeetingSummaryText = "";
+  var draftSaveTimer = null;
   var portfolioDataset = [];
   var ppmSnapshotMap = {};
+
+  var STORAGE_KEYS = {
+    LAST_PROFESSIONAL: "vm_form_last_professional_v1",
+    DRAFT: "vm_form_draft_v1",
+    LAST_SUBMISSION: "vm_form_last_submission_v1",
+    PROJECT_USAGE: "vm_form_project_usage_v1"
+  };
 
   var projectMap = {};
   var projectList = [];
@@ -171,13 +184,19 @@
     }
 
     populateProfessionals();
+    restoreLastProfessional_();
     populateProjects();
+    populateBulkSelectors_();
     setDefaultDate();
     setDefaultPortfolioCutoffDate_();
     renderProjectSections([]);
+    applyDailySimpleMode_();
 
+    professionalEl.addEventListener("change", handleProfessionalChange_);
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
+    formEl.addEventListener("change", handleFormInteraction_);
+    formEl.addEventListener("input", handleFormInteraction_);
     if (portfolioFilterEl) {
       portfolioFilterEl.addEventListener("change", renderPortfolioOverview);
     }
@@ -194,6 +213,12 @@
       meetingCopyEl.addEventListener("click", handleMeetingCopy);
       meetingCopyEl.disabled = true;
     }
+    if (applyBulkEl) {
+      applyBulkEl.addEventListener("click", handleApplyBulkAction_);
+    }
+    if (repeatLastEl) {
+      repeatLastEl.addEventListener("click", handleRepeatLastSubmission_);
+    }
     if (portfolioToggleEl && portfolioContentEl) {
       portfolioToggleEl.addEventListener("click", handlePortfolioToggle);
     }
@@ -204,10 +229,12 @@
       summaryToggleEl.addEventListener("click", handleSummaryToggle);
     }
 
+    restoreDraftIfAny_();
     loadRefOptionsFromServer();
     loadPpmSnapshotFromServer();
     portfolioDataset = buildPortfolioDataset_();
     renderPortfolioOverview();
+    updateFormChecklist_();
     clearSummaryUI();
   }
 
@@ -231,6 +258,20 @@
     portfolioToggleEl.textContent = isHidden ? "Expandir status visual" : "Recolher status visual";
   }
 
+  function applyDailySimpleMode_() {
+    if (guideStepsEl && guideToggleEl && !guideStepsEl.classList.contains("hidden")) {
+      guideStepsEl.classList.add("hidden");
+      guideToggleEl.setAttribute("aria-expanded", "false");
+      guideToggleEl.textContent = "Expandir explicacoes";
+    }
+
+    if (portfolioContentEl && portfolioToggleEl && !portfolioContentEl.classList.contains("hidden")) {
+      portfolioContentEl.classList.add("hidden");
+      portfolioToggleEl.setAttribute("aria-expanded", "false");
+      portfolioToggleEl.textContent = "Expandir status visual";
+    }
+  }
+
   function handleMeetingCopy() {
     if (!lastMeetingSummaryText) {
       showFeedback("warn", "Nao ha pauta de reuniao para copiar.");
@@ -244,6 +285,366 @@
       .catch(function () {
         showFeedback("error", "Nao foi possivel copiar o resumo automaticamente.");
       });
+  }
+
+  function handleProfessionalChange_() {
+    rememberLastProfessional_(cleanText((professionalEl || {}).value));
+    var draft = buildCurrentDraft_();
+    refreshProjectsKeepingDraft_(draft);
+  }
+
+  function handleFormInteraction_(event) {
+    var target = event && event.target;
+    if (!target) {
+      return;
+    }
+
+    if (target === professionalEl || target.id === "portfolio-filter" || target.id === "portfolio-cutoff") {
+      return;
+    }
+
+    updateFormChecklist_();
+    scheduleDraftSave_();
+  }
+
+  function refreshProjectsKeepingDraft_(draft) {
+    var snapshot = draft || buildCurrentDraft_();
+    var selectedCodes = Array.isArray(snapshot.selectedCodes) ? snapshot.selectedCodes.slice() : [];
+
+    populateProjects();
+    selectProjectCodes_(selectedCodes);
+    renderProjectSections(selectedCodes);
+    applyDraftValuesToSections_(snapshot);
+    updateFormChecklist_();
+    scheduleDraftSave_();
+  }
+
+  function populateBulkSelectors_() {
+    if (bulkStatusEl) {
+      bulkStatusEl.innerHTML = '<option value="">Nao alterar</option>';
+      (cfg.opcoesStatus || []).forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = cleanText(item && item.code);
+        option.textContent = cleanText(item && item.label) || cleanText(item && item.code);
+        bulkStatusEl.appendChild(option);
+      });
+    }
+
+    if (bulkBlockEl) {
+      bulkBlockEl.innerHTML = '<option value="">Nao alterar</option>';
+      (cfg.opcoesBloqueio || []).forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = cleanText(item && item.code);
+        option.textContent = cleanText(item && item.label) || cleanText(item && item.code);
+        bulkBlockEl.appendChild(option);
+      });
+    }
+  }
+
+  function handleApplyBulkAction_() {
+    var statusCode = cleanText((bulkStatusEl || {}).value);
+    var blockCode = cleanText((bulkBlockEl || {}).value);
+    var selectedCodes = getSelectedProjectCodes();
+
+    if (!selectedCodes.length) {
+      showFeedback("warn", "Marque ao menos um projeto antes de aplicar em lote.");
+      return;
+    }
+
+    if (!statusCode && !blockCode) {
+      showFeedback("warn", "Selecione status e/ou bloqueio para aplicar em lote.");
+      return;
+    }
+
+    selectedCodes.forEach(function (code) {
+      var key = sanitizeKey(code);
+      if (statusCode) {
+        var statusInput = document.querySelector(
+          'input[name="status-' + key + '"][value="' + statusCode + '"]'
+        );
+        if (statusInput) {
+          statusInput.checked = true;
+        }
+      }
+
+      if (blockCode) {
+        var blockInput = document.querySelector(
+          'input[name="block-' + key + '"][value="' + blockCode + '"]'
+        );
+        if (blockInput) {
+          blockInput.checked = true;
+          blockInput.dispatchEvent(new Event("change"));
+        }
+      }
+    });
+
+    updateFormChecklist_();
+    scheduleDraftSave_();
+    showFeedback("ok", "Aplicacao em lote concluida nas secoes selecionadas.");
+  }
+
+  function handleRepeatLastSubmission_() {
+    var last = getStorageJson_(STORAGE_KEYS.LAST_SUBMISSION);
+    if (!last || !Array.isArray(last.projects) || !last.projects.length) {
+      showFeedback("warn", "Nenhum preenchimento anterior encontrado neste navegador.");
+      return;
+    }
+
+    if (last.professional && professionalEl) {
+      professionalEl.value = cleanText(last.professional);
+      rememberLastProfessional_(cleanText(last.professional));
+    }
+
+    if (!cleanText((dateEl || {}).value)) {
+      setDefaultDate();
+    }
+
+    var selectedCodes = last.projects
+      .map(function (item) {
+        return cleanText(item && item.projectCode);
+      })
+      .filter(Boolean);
+
+    populateProjects();
+    selectProjectCodes_(selectedCodes);
+    renderProjectSections(selectedCodes);
+
+    last.projects.forEach(function (section) {
+      applySectionValues_(cleanText(section && section.projectCode), {
+        refEap: cleanText(section && section.refEap),
+        taskRefEap: cleanText(section && section.taskRefEap),
+        taskFreeText: cleanText(section && section.taskFreeText),
+        statusCode: cleanText(section && section.statusCode),
+        blockCode: cleanText(section && section.blockCode),
+        blockDescription: cleanText(section && section.blockDescription),
+        observation: cleanText(section && section.observation)
+      });
+    });
+
+    updateFormChecklist_();
+    scheduleDraftSave_();
+    showFeedback("ok", "Ultimo preenchimento replicado. Revise e envie.");
+  }
+
+  function saveLastSubmissionTemplate_(payload) {
+    if (!payload || !Array.isArray(payload.projects) || !payload.projects.length) {
+      return;
+    }
+
+    setStorageJson_(STORAGE_KEYS.LAST_SUBMISSION, {
+      professional: cleanText(payload.professional),
+      date: cleanText(payload.date),
+      projects: payload.projects.map(function (item) {
+        return {
+          projectCode: cleanText(item && item.projectCode),
+          refEap: cleanText(item && item.refEap),
+          taskRefEap: cleanText(item && item.taskRefEap),
+          taskFreeText: cleanText(item && item.taskFreeText),
+          statusCode: cleanText(item && item.statusCode),
+          blockCode: cleanText(item && item.blockCode),
+          blockDescription: cleanText(item && item.blockDescription),
+          observation: cleanText(item && item.observation)
+        };
+      }),
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  function scheduleDraftSave_() {
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer);
+    }
+    draftSaveTimer = setTimeout(function () {
+      saveDraftNow_();
+      draftSaveTimer = null;
+    }, 250);
+  }
+
+  function saveDraftNow_() {
+    var draft = buildCurrentDraft_();
+    if (!hasDraftContent_(draft)) {
+      clearDraft_();
+      return;
+    }
+    setStorageJson_(STORAGE_KEYS.DRAFT, draft);
+  }
+
+  function clearDraft_() {
+    removeStorageKey_(STORAGE_KEYS.DRAFT);
+  }
+
+  function restoreDraftIfAny_() {
+    var draft = getStorageJson_(STORAGE_KEYS.DRAFT);
+    if (!draft || typeof draft !== "object") {
+      return;
+    }
+
+    var savedAt = parseDateFlexible_(draft.savedAt);
+    if (savedAt && Math.abs(new Date().getTime() - savedAt.getTime()) > 7 * 24 * 60 * 60 * 1000) {
+      clearDraft_();
+      return;
+    }
+
+    if (cleanText(draft.professional) && professionalEl) {
+      professionalEl.value = cleanText(draft.professional);
+      rememberLastProfessional_(cleanText(draft.professional));
+    }
+
+    if (cleanText(draft.date) && dateEl) {
+      dateEl.value = cleanText(draft.date);
+    }
+
+    populateProjects();
+    var selectedCodes = Array.isArray(draft.selectedCodes) ? draft.selectedCodes : [];
+    selectProjectCodes_(selectedCodes);
+    renderProjectSections(selectedCodes);
+    applyDraftValuesToSections_(draft);
+    updateFormChecklist_();
+
+    if (selectedCodes.length) {
+      showFeedback("warn", "Rascunho restaurado automaticamente neste navegador.");
+    }
+  }
+
+  function buildCurrentDraft_() {
+    var selectedCodes = getSelectedProjectCodes();
+    var sections = {};
+
+    selectedCodes.forEach(function (code) {
+      var key = sanitizeKey(code);
+      var statusEl = document.querySelector('input[name="status-' + key + '"]:checked');
+      var blockEl = document.querySelector('input[name="block-' + key + '"]:checked');
+
+      sections[code] = {
+        refEap: cleanText((document.getElementById("ref-" + key) || {}).value),
+        taskRefEap: cleanText((document.getElementById("task-ref-" + key) || {}).value),
+        taskFreeText: cleanText((document.getElementById("task-free-" + key) || {}).value),
+        statusCode: cleanText(statusEl && statusEl.value),
+        blockCode: cleanText(blockEl && blockEl.value),
+        blockDescription: cleanText((document.getElementById("block-desc-" + key) || {}).value),
+        observation: cleanText((document.getElementById("obs-" + key) || {}).value)
+      };
+    });
+
+    return {
+      professional: cleanText((professionalEl || {}).value),
+      date: cleanText((dateEl || {}).value),
+      selectedCodes: selectedCodes,
+      sectionsByCode: sections,
+      savedAt: new Date().toISOString()
+    };
+  }
+
+  function hasDraftContent_(draft) {
+    if (!draft) {
+      return false;
+    }
+    if (cleanText(draft.professional) || cleanText(draft.date)) {
+      return true;
+    }
+    return Array.isArray(draft.selectedCodes) && draft.selectedCodes.length > 0;
+  }
+
+  function applyDraftValuesToSections_(draft) {
+    if (!draft || !draft.sectionsByCode) {
+      return;
+    }
+    var sectionMap = draft.sectionsByCode;
+    var selectedCodes = getSelectedProjectCodes();
+
+    selectedCodes.forEach(function (code) {
+      applySectionValues_(code, sectionMap[code] || {});
+    });
+  }
+
+  function applySectionValues_(code, values) {
+    var key = sanitizeKey(code);
+    var refEl = document.getElementById("ref-" + key);
+    var taskRefEl = document.getElementById("task-ref-" + key);
+    var taskFreeEl = document.getElementById("task-free-" + key);
+    var blockDescEl = document.getElementById("block-desc-" + key);
+    var obsEl = document.getElementById("obs-" + key);
+
+    if (refEl && cleanText(values.refEap)) {
+      refEl.value = cleanText(values.refEap);
+    }
+    if (taskRefEl && cleanText(values.taskRefEap)) {
+      taskRefEl.value = cleanText(values.taskRefEap);
+    }
+    if (taskFreeEl && cleanText(values.taskFreeText)) {
+      taskFreeEl.value = cleanText(values.taskFreeText);
+    }
+
+    if (cleanText(values.statusCode)) {
+      var statusInput = document.querySelector(
+        'input[name="status-' + key + '"][value="' + cleanText(values.statusCode) + '"]'
+      );
+      if (statusInput) {
+        statusInput.checked = true;
+      }
+    }
+
+    if (cleanText(values.blockCode)) {
+      var blockInput = document.querySelector(
+        'input[name="block-' + key + '"][value="' + cleanText(values.blockCode) + '"]'
+      );
+      if (blockInput) {
+        blockInput.checked = true;
+        blockInput.dispatchEvent(new Event("change"));
+      }
+    }
+
+    if (blockDescEl && cleanText(values.blockDescription)) {
+      blockDescEl.value = cleanText(values.blockDescription);
+    }
+    if (obsEl && cleanText(values.observation)) {
+      obsEl.value = cleanText(values.observation);
+    }
+  }
+
+  function rememberLastProfessional_(professional) {
+    if (!professional) {
+      return;
+    }
+    setStorageJson_(STORAGE_KEYS.LAST_PROFESSIONAL, professional);
+  }
+
+  function restoreLastProfessional_() {
+    var saved = cleanText(getStorageJson_(STORAGE_KEYS.LAST_PROFESSIONAL));
+    if (!saved || !professionalEl) {
+      return;
+    }
+    professionalEl.value = saved;
+  }
+
+  function rememberProjectUsage_(professional, projectCodes) {
+    var owner = cleanText(professional).toUpperCase();
+    if (!owner || !Array.isArray(projectCodes) || !projectCodes.length) {
+      return;
+    }
+
+    var map = getStorageJson_(STORAGE_KEYS.PROJECT_USAGE) || {};
+    var ownerMap = map[owner] || {};
+    var stamp = Date.now();
+
+    projectCodes.forEach(function (code) {
+      var key = cleanText(code);
+      if (key) {
+        ownerMap[key] = stamp;
+      }
+    });
+
+    map[owner] = ownerMap;
+    setStorageJson_(STORAGE_KEYS.PROJECT_USAGE, map);
+  }
+
+  function getProjectUsageForProfessional_(professional) {
+    var owner = cleanText(professional).toUpperCase();
+    if (!owner) {
+      return {};
+    }
+    var map = getStorageJson_(STORAGE_KEYS.PROJECT_USAGE) || {};
+    return map[owner] || {};
   }
 
   function populateProfessionals() {
@@ -263,7 +664,9 @@
   }
 
   function populateProjects() {
-    var html = (projectList || [])
+    var currentProfessional = cleanText((professionalEl || {}).value);
+    var orderedProjects = getProjectsOrderedForProfessional_(currentProfessional);
+    var html = orderedProjects
       .map(function (project) {
         var safeId = "project-" + sanitizeKey(project.code);
         return [
@@ -276,6 +679,22 @@
       .join("");
 
     projectListEl.innerHTML = html || "<p>Nenhum projeto configurado.</p>";
+  }
+
+  function getProjectsOrderedForProfessional_(professional) {
+    var base = (projectList || []).slice();
+    var usage = getProjectUsageForProfessional_(professional);
+
+    base.sort(function (a, b) {
+      var scoreA = Number(usage[a.code] || 0);
+      var scoreB = Number(usage[b.code] || 0);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      return String(a.code).localeCompare(String(b.code));
+    });
+
+    return base;
   }
 
   function rebuildProjectCache_(projects) {
@@ -312,8 +731,12 @@
   }
 
   function handleProjectSelectionChange() {
+    var draft = buildCurrentDraft_();
     renderProjectSections(getSelectedProjectCodes());
+    applyDraftValuesToSections_(draft);
     renderPortfolioOverview();
+    updateFormChecklist_();
+    scheduleDraftSave_();
   }
 
   function renderProjectSections(selectedCodes) {
@@ -363,7 +786,36 @@
 
       projectSectionsEl.appendChild(sectionEl);
       wireBlockToggle(key);
+      wireRefAutoFill_(key);
+      setDefaultBlockValue_(key);
     });
+
+    updateFormChecklist_();
+  }
+
+  function wireRefAutoFill_(key) {
+    var refEl = document.getElementById("ref-" + key);
+    var taskRefEl = document.getElementById("task-ref-" + key);
+    if (!refEl || !taskRefEl) {
+      return;
+    }
+
+    refEl.addEventListener("change", function () {
+      if (cleanText(refEl.value)) {
+        taskRefEl.value = cleanText(refEl.value);
+      }
+      updateFormChecklist_();
+      scheduleDraftSave_();
+    });
+  }
+
+  function setDefaultBlockValue_(key) {
+    var blockInput = document.querySelector('input[name="block-' + key + '"][value="NAO"]');
+    if (!blockInput) {
+      return;
+    }
+    blockInput.checked = true;
+    blockInput.dispatchEvent(new Event("change"));
   }
 
   function buildRefOptionsHtml(projectCode) {
@@ -495,8 +947,83 @@
         } else {
           blockWrap.classList.remove("hidden");
         }
+        updateFormChecklist_();
+        scheduleDraftSave_();
       });
     }
+  }
+
+  function updateFormChecklist_() {
+    if (!formChecklistEl) {
+      return;
+    }
+
+    var selectedCodes = getSelectedProjectCodes();
+    formChecklistEl.classList.remove("ok", "warn");
+
+    if (!selectedCodes.length) {
+      formChecklistEl.classList.add("warn");
+      formChecklistEl.textContent = "Selecione ao menos 1 projeto para iniciar o preenchimento.";
+      return;
+    }
+
+    var pending = [];
+    selectedCodes.forEach(function (code) {
+      var project = projectMap[code] || { label: code };
+      var missing = getSectionMissingFields_(code);
+      if (missing.length) {
+        pending.push({
+          label: cleanText(project.label) || code,
+          missing: missing
+        });
+      }
+    });
+
+    if (!pending.length) {
+      formChecklistEl.classList.add("ok");
+      formChecklistEl.textContent =
+        "Tudo certo para envio: " + String(selectedCodes.length) + " secoes completas.";
+      return;
+    }
+
+    var first = pending[0];
+    formChecklistEl.classList.add("warn");
+    formChecklistEl.textContent =
+      "Faltam " +
+      String(pending.length) +
+      " secoes incompletas. Exemplo: " +
+      first.label +
+      " (" +
+      first.missing.join(", ") +
+      ").";
+  }
+
+  function getSectionMissingFields_(code) {
+    var key = sanitizeKey(code);
+    var missing = [];
+    var refEap = cleanText((document.getElementById("ref-" + key) || {}).value);
+    var taskRef = cleanText((document.getElementById("task-ref-" + key) || {}).value);
+    var taskFree = cleanText((document.getElementById("task-free-" + key) || {}).value);
+    var statusEl = document.querySelector('input[name="status-' + key + '"]:checked');
+    var blockEl = document.querySelector('input[name="block-' + key + '"]:checked');
+    var blockDesc = cleanText((document.getElementById("block-desc-" + key) || {}).value);
+
+    if (!refEap) {
+      missing.push("REF EAP");
+    }
+    if (!taskRef && !taskFree) {
+      missing.push("Tarefa 4B");
+    }
+    if (!statusEl) {
+      missing.push("Status");
+    }
+    if (!blockEl) {
+      missing.push("Bloqueio");
+    } else if (cleanText(blockEl.value) !== "NAO" && !blockDesc) {
+      missing.push("Desc. bloqueio");
+    }
+
+    return missing;
   }
 
   function handleSubmit(event) {
@@ -600,6 +1127,8 @@
       source: "vm-arquitetos-web-v1"
     };
 
+    rememberLastProfessional_(professional);
+
     submitButtonEl.disabled = true;
     submitButtonEl.textContent = "Enviando...";
 
@@ -613,6 +1142,9 @@
           if (result.data.rowsCreated) {
             msg += " Linhas criadas: " + result.data.rowsCreated + ".";
           }
+          rememberProjectUsage_(professional, selectedCodes);
+          saveLastSubmissionTemplate_(payload);
+          clearDraft_();
           showFeedback("ok", msg);
           setSummaryForSubmission(result.data.dailySummary || buildFallbackDailySummary(payload));
           resetForm();
@@ -630,6 +1162,9 @@
           "warn",
           "Envio realizado no modo de compatibilidade. Confirme a entrada na aba EXECUCAO da planilha."
         );
+        rememberProjectUsage_(professional, selectedCodes);
+        saveLastSubmissionTemplate_(payload);
+        clearDraft_();
         resetForm();
         loadRefOptionsFromServer();
         loadPpmSnapshotFromServer();
@@ -709,7 +1244,10 @@
     window[callbackName] = function (data) {
       try {
         if (data && data.status === "ok") {
-          var previouslySelected = getSelectedProjectCodes();
+          var previousDraft = buildCurrentDraft_();
+          var previouslySelected = Array.isArray(previousDraft.selectedCodes)
+            ? previousDraft.selectedCodes
+            : [];
 
           if (Array.isArray(data.projects) && data.projects.length) {
             rebuildProjectCache_(mergeProjects_(localProjectsFromConfig, data.projects));
@@ -722,8 +1260,10 @@
           }
 
           renderProjectSections(getSelectedProjectCodes());
+          applyDraftValuesToSections_(previousDraft);
           portfolioDataset = buildPortfolioDataset_();
           renderPortfolioOverview();
+          updateFormChecklist_();
         }
       } finally {
         finish();
@@ -1872,9 +2412,21 @@
   }
 
   function resetForm() {
+    var previousProfessional = cleanText((professionalEl || {}).value);
     formEl.reset();
+    if (previousProfessional && professionalEl) {
+      professionalEl.value = previousProfessional;
+    }
     setDefaultDate();
+    populateProjects();
     renderProjectSections([]);
+    if (bulkStatusEl) {
+      bulkStatusEl.value = "";
+    }
+    if (bulkBlockEl) {
+      bulkBlockEl.value = "";
+    }
+    updateFormChecklist_();
   }
 
   function getSelectedProjectCodes() {
@@ -2061,6 +2613,38 @@
 
       reject(new Error("copy_failed"));
     });
+  }
+
+  function getStorageJson_(key) {
+    try {
+      var raw = window.localStorage.getItem(key);
+      if (!raw) {
+        return null;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch (parseError) {
+        return raw;
+      }
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setStorageJson_(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      // Ignora erros de armazenamento local (quota, privacidade, etc).
+    }
+  }
+
+  function removeStorageKey_(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (error) {
+      // Sem acao.
+    }
   }
 
   function showFeedback(type, message) {

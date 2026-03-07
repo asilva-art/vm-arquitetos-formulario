@@ -197,6 +197,29 @@
             <div id="project-list" class="check-list"></div>
           </div>
 
+          <section class="quick-actions" aria-label="Acoes rapidas de preenchimento">
+            <p class="quick-actions-title">Acoes rapidas</p>
+            <div class="quick-actions-grid">
+              <div class="quick-action-item">
+                <label for="bulk-status">Aplicar status em todas as secoes selecionadas</label>
+                <select id="bulk-status" name="bulkStatus">
+                  <option value="">Nao alterar</option>
+                </select>
+              </div>
+              <div class="quick-action-item">
+                <label for="bulk-block">Aplicar bloqueio em todas as secoes selecionadas</label>
+                <select id="bulk-block" name="bulkBlock">
+                  <option value="">Nao alterar</option>
+                </select>
+              </div>
+            </div>
+            <div class="quick-actions-buttons">
+              <button id="apply-bulk" class="quick-action-btn" type="button">Aplicar em todos</button>
+              <button id="repeat-last" class="quick-action-btn secondary" type="button">Repetir ultimo preenchimento</button>
+            </div>
+            <p id="form-checklist" class="form-checklist">Selecione os projetos para iniciar o preenchimento.</p>
+          </section>
+
           <div id="project-sections"></div>
 
           <div class="actions">
@@ -210,7 +233,7 @@
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
     </main>
 
-    <script src="./config.js?v=20260307g"></script>
-    <script src="./app.js?v=20260307g"></script>
+    <script src="./config.js?v=20260307h"></script>
+    <script src="./app.js?v=20260307h"></script>
   </body>
 </html>
