@@ -16,6 +16,7 @@
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
 - Permite editar envio existente via `editFormId` sem criar duplicata, reconstruindo o controle automaticamente.
 - Permite salvar ajustes de coordenacao via `action=coord_update_project` (datas, status, responsavel, bloqueio e eventos).
+- Permite sequenciamento por tarefa (`PREDECESSORA REF`, `RELACAO DEP`, `LAG DU`) com recalculo automatico de datas planejadas.
 - Inclui reset total para reconstruir a base com `EAP_PADRAO_V1` (10 fases / 48 itens).
 
 ## Arquivos
@@ -47,6 +48,7 @@
 - `sincronizarControleComExecucaoHistorica`: reprocesa historico da EXECUCAO para atualizar controle.
 - `resumoControleEapAtual`: retorna contagem por status (nao iniciada, andamento, concluida, bloqueada).
 - `EVENTOS_COORDENACAO`: aba auxiliar para programacao de eventos por projeto.
+- `CONTROLE_EAP_ATUAL`: agora inclui campos de dependencia e lag para coordenacao avançada.
 
 ## Ajustes comuns
 

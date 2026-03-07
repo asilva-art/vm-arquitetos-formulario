@@ -1210,6 +1210,34 @@ textarea {
   color: #a13428;
 }
 
+.coord-alerts {
+  margin: 0 0 10px;
+  padding: 9px 10px;
+  border: 1px solid #f0d8a8;
+  border-radius: 9px;
+  background: #fff8e8;
+}
+
+.coord-alerts h5 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a5f1a;
+}
+
+.coord-alerts ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.coord-alerts li {
+  margin: 0 0 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #755f2a;
+}
+
 .coord-task-list {
   display: grid;
   gap: 8px;
@@ -1282,7 +1310,7 @@ textarea {
 .coord-task-grid {
   margin-top: 9px;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
 }
 

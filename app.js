@@ -47,6 +47,7 @@
   var coordFilterEl = document.getElementById("coord-filter");
   var coordSaveEl = document.getElementById("coord-save");
   var coordFeedbackEl = document.getElementById("coord-feedback");
+  var coordAlertsEl = document.getElementById("coord-alerts");
   var coordTaskListEl = document.getElementById("coord-task-list");
   var coordAddEventEl = document.getElementById("coord-add-event");
   var coordEventsListEl = document.getElementById("coord-events-list");
@@ -67,6 +68,7 @@
     projectName: "",
     tasks: [],
     events: [],
+    warnings: [],
     originalTasksByRef: {},
     originalEventsKey: ""
   };
@@ -2650,6 +2652,7 @@
     coordState.projectName = cleanText(project.label || targetContractId);
     coordState.tasks = [];
     coordState.events = [];
+    coordState.warnings = [];
     coordState.originalTasksByRef = {};
     coordState.originalEventsKey = "";
 
@@ -2676,6 +2679,7 @@
       .then(function (payload) {
         coordState.tasks = payload.tasks;
         coordState.events = payload.events;
+        coordState.warnings = payload.warnings;
         coordState.projectName = payload.projectName || coordState.projectName;
         coordState.originalTasksByRef = {};
         payload.tasks.forEach(function (task) {
@@ -2684,6 +2688,10 @@
             responsible: cleanText(task.responsible),
             plannedStart: cleanText(task.plannedStart),
             plannedEnd: cleanText(task.plannedEnd),
+            prazoDu: String(Number(task.prazoDu || 1)),
+            predecessorRef: cleanText(task.predecessorRef),
+            relationType: cleanText(task.relationType) || "FS",
+            lagDu: String(Number(task.lagDu || 0)),
             percentReal: String(Number(task.percentReal || 0)),
             blocked: task.blocked ? "Sim" : "Nao",
             blockReason: cleanText(task.blockReason)
@@ -2782,6 +2790,7 @@
   function normalizeCoordProjectPayload_(project) {
     var tasks = Array.isArray(project.tasks) ? project.tasks : [];
     var events = Array.isArray(project.events) ? project.events : [];
+    var warnings = Array.isArray(project.warnings) ? project.warnings : [];
 
     return {
       contractId: cleanText(project.contractId),
@@ -2796,6 +2805,10 @@
           responsible: cleanText(task.responsible),
           plannedStart: cleanText(task.plannedStart),
           plannedEnd: cleanText(task.plannedEnd),
+          prazoDu: Number(task.prazoDu || 0),
+          predecessorRef: cleanText(task.predecessorRef),
+          relationType: cleanText(task.relationType) || "FS",
+          lagDu: Number(task.lagDu || 0),
           percentReal: Number(task.percentReal || 0),
           blocked: !!task.blocked,
           blockReason: cleanText(task.blockReason),
@@ -2812,7 +2825,10 @@
           status: cleanText(event.status),
           observation: cleanText(event.observation)
         };
-      })
+      }),
+      warnings: warnings.map(function (warning) {
+        return cleanText(warning);
+      }).filter(Boolean)
     };
   }
 
@@ -2827,16 +2843,23 @@
     if (coordSubtitleEl) {
       coordSubtitleEl.textContent =
         (cleanText(coordState.projectName) || coordState.contractId) +
-        " | Edite datas, responsaveis, status, bloqueios e eventos.";
+        " | Edite sequenciamento, datas, responsaveis, status, bloqueios e eventos.";
     }
 
+    renderCoordWarnings_();
+
     var statusOptions = ["NAO INICIADA", "EM ANDAMENTO", "BLOQUEADA", "CONCLUIDA"];
+    var relationOptions = ["FS", "SS", "FF", "SF"];
     var professionals = Array.isArray(cfg.profissionais) ? cfg.profissionais : [];
     var tasksHtml = coordState.tasks
       .map(function (task, index) {
         var ref = cleanText(task.refEap);
         var plannedStart = formatDateInput_(task.plannedStart);
         var plannedEnd = formatDateInput_(task.plannedEnd);
+        var duration = Math.max(1, Number(task.prazoDu || 1));
+        var predecessorRef = cleanText(task.predecessorRef);
+        var relationType = cleanText(task.relationType) || "FS";
+        var lagDu = Number(task.lagDu || 0);
         var status = normalizePortfolioStatus_(task.status);
         var blocked = task.blocked ? "Sim" : "Nao";
         var tagClass = getCoordStatusTagClass_(status);
@@ -2847,6 +2870,19 @@
               escapeAttr(option) +
               '"' +
               (option === status ? " selected" : "") +
+              ">" +
+              escapeHtml(option) +
+              "</option>"
+            );
+          })
+          .join("");
+        var relationOptionsHtml = relationOptions
+          .map(function (option) {
+            return (
+              '<option value="' +
+              escapeAttr(option) +
+              '"' +
+              (option === relationType ? " selected" : "") +
               ">" +
               escapeHtml(option) +
               "</option>"
@@ -2882,6 +2918,10 @@
           '<div class="coord-task-grid">',
           '<div class="coord-field"><label>Status</label><select class="coord-status">' + statusOptionsHtml + "</select></div>",
           '<div class="coord-field"><label>Responsavel</label><select class="coord-responsible">' + responsibleOptionsHtml + "</select></div>",
+          '<div class="coord-field"><label>Prazo DU</label><input class="coord-prazo-du" type="number" min="1" max="120" step="1" value="' + escapeAttr(String(duration)) + '" /></div>',
+          '<div class="coord-field long"><label>Predecessora (REF EAP; use ; para multiplas)</label><input class="coord-predecessor" type="text" maxlength="200" value="' + escapeAttr(predecessorRef) + '" placeholder="Ex: CT117-WBS-1_1_1; CT117-WBS-1_1_2" /></div>',
+          '<div class="coord-field"><label>Relacao</label><select class="coord-relation">' + relationOptionsHtml + "</select></div>",
+          '<div class="coord-field"><label>Lag DU</label><input class="coord-lag-du" type="number" min="-30" max="30" step="1" value="' + escapeAttr(String(lagDu)) + '" /></div>',
           '<div class="coord-field"><label>Inicio planejado</label><input class="coord-planned-start" type="date" value="' + escapeAttr(plannedStart) + '" /></div>',
           '<div class="coord-field"><label>Fim planejado</label><input class="coord-planned-end" type="date" value="' + escapeAttr(plannedEnd) + '" /></div>',
           '<div class="coord-field"><label>% Real</label><input class="coord-percent-real" type="number" min="0" max="100" step="1" value="' + escapeAttr(String(Math.max(0, Math.min(100, Number(task.percentReal || 0))))) + '" /></div>',
@@ -2899,6 +2939,26 @@
     coordTaskListEl.addEventListener("input", handleCoordTaskFieldChange_);
     renderCoordEvents_(coordState.events);
     applyCoordFilter_();
+  }
+
+  function renderCoordWarnings_() {
+    if (!coordAlertsEl) {
+      return;
+    }
+    var warnings = Array.isArray(coordState.warnings) ? coordState.warnings : [];
+    if (!warnings.length) {
+      coordAlertsEl.classList.add("hidden");
+      coordAlertsEl.innerHTML = "";
+      return;
+    }
+
+    coordAlertsEl.classList.remove("hidden");
+    coordAlertsEl.innerHTML =
+      "<h5>Alertas de sequenciamento</h5><ul>" +
+      warnings.map(function (warning) {
+        return "<li>" + escapeHtml(cleanText(warning)) + "</li>";
+      }).join("") +
+      "</ul>";
   }
 
   function renderCoordEvents_(events) {
@@ -3058,7 +3118,13 @@
     }
 
     var tasksNow = collectCoordTasksFromForm_();
-    var taskUpdates = buildCoordTaskUpdates_(tasksNow);
+    var taskUpdates = [];
+    try {
+      taskUpdates = buildCoordTaskUpdates_(tasksNow);
+    } catch (validationError) {
+      showCoordFeedback_("error", cleanText(validationError && validationError.message) || "Erro de validacao.");
+      return;
+    }
     var eventsNow = collectCoordEventsFromForm_();
     var eventsKey = coordEventsKey_(eventsNow);
     var hasEventsChanged = eventsKey !== coordState.originalEventsKey;
@@ -3074,6 +3140,7 @@
       contractId: contractId,
       projectName: cleanText(coordState.projectName),
       editor: editor,
+      recalculate: true,
       updates: taskUpdates,
       events: eventsNow
     };
@@ -3099,12 +3166,17 @@
                 responsible: cleanText(task.responsible),
                 plannedStart: cleanText(task.plannedStart),
                 plannedEnd: cleanText(task.plannedEnd),
+                prazoDu: String(Number(task.prazoDu || 1)),
+                predecessorRef: cleanText(task.predecessorRef),
+                relationType: cleanText(task.relationType) || "FS",
+                lagDu: String(Number(task.lagDu || 0)),
                 percentReal: String(Number(task.percentReal || 0)),
                 blocked: task.blocked ? "Sim" : "Nao",
                 blockReason: cleanText(task.blockReason)
               };
             });
             coordState.originalEventsKey = coordEventsKey_(fresh.events);
+            coordState.warnings = fresh.warnings || [];
             renderCoordPanel_();
             showCoordFeedback_(
               "ok",
@@ -3112,6 +3184,8 @@
                 String(Number(result.data.updatedTasks || 0)) +
                 ". Eventos salvos: " +
                 String(Number(result.data.savedEvents || 0)) +
+                ". Datas recalculadas: " +
+                String(Number(result.data.recalculatedDates || 0)) +
                 "."
             );
           });
@@ -3151,6 +3225,10 @@
         refEap: cleanText(row.getAttribute("data-ref-eap")),
         status: cleanText((row.querySelector(".coord-status") || {}).value),
         responsible: cleanText((row.querySelector(".coord-responsible") || {}).value),
+        prazoDu: cleanText((row.querySelector(".coord-prazo-du") || {}).value),
+        predecessorRef: cleanText((row.querySelector(".coord-predecessor") || {}).value),
+        relationType: cleanText((row.querySelector(".coord-relation") || {}).value),
+        lagDu: cleanText((row.querySelector(".coord-lag-du") || {}).value),
         plannedStart: cleanText((row.querySelector(".coord-planned-start") || {}).value),
         plannedEnd: cleanText((row.querySelector(".coord-planned-end") || {}).value),
         percentReal: cleanText((row.querySelector(".coord-percent-real") || {}).value),
@@ -3175,6 +3253,10 @@
       var original = coordState.originalTasksByRef[ref] || {
         status: "",
         responsible: "",
+        prazoDu: "1",
+        predecessorRef: "",
+        relationType: "FS",
+        lagDu: "0",
         plannedStart: "",
         plannedEnd: "",
         percentReal: "",
@@ -3182,9 +3264,15 @@
         blockReason: ""
       };
 
+      var duration = Math.max(1, Math.min(120, Number(item.prazoDu || 1)));
+      var lag = Math.max(-30, Math.min(30, Number(item.lagDu || 0)));
       var current = {
         status: normalizePortfolioStatus_(item.status),
         responsible: cleanText(item.responsible),
+        prazoDu: String(duration),
+        predecessorRef: cleanText(item.predecessorRef),
+        relationType: cleanText(item.relationType) || "FS",
+        lagDu: String(lag),
         plannedStart: cleanText(item.plannedStart),
         plannedEnd: cleanText(item.plannedEnd),
         percentReal: String(Math.max(0, Math.min(100, Number(item.percentReal || 0)))),
@@ -3192,9 +3280,31 @@
         blockReason: cleanText(item.blockReason)
       };
 
+      if (current.predecessorRef) {
+        var predecessorRefs = current.predecessorRef
+          .split(/[;,]+/)
+          .map(function (text) {
+            return cleanText(text);
+          })
+          .filter(Boolean);
+        if (predecessorRefs.indexOf(ref) >= 0) {
+          throw new Error("A tarefa " + ref + " nao pode depender dela mesma.");
+        }
+      }
+
+      var startDate = parseDateFlexible_(current.plannedStart);
+      var endDate = parseDateFlexible_(current.plannedEnd);
+      if (startDate && endDate && endDate.getTime() < startDate.getTime()) {
+        throw new Error("Em " + ref + ", o fim planejado nao pode ser menor que o inicio planejado.");
+      }
+
       if (
         current.status !== cleanText(original.status) ||
         current.responsible !== cleanText(original.responsible) ||
+        current.prazoDu !== cleanText(original.prazoDu) ||
+        current.predecessorRef !== cleanText(original.predecessorRef) ||
+        current.relationType !== cleanText(original.relationType) ||
+        current.lagDu !== cleanText(original.lagDu) ||
         current.plannedStart !== cleanText(original.plannedStart) ||
         current.plannedEnd !== cleanText(original.plannedEnd) ||
         current.percentReal !== cleanText(original.percentReal) ||
@@ -3205,6 +3315,10 @@
           refEap: ref,
           status: current.status,
           responsible: current.responsible,
+          prazoDu: Number(current.prazoDu || 1),
+          predecessorRef: current.predecessorRef,
+          relationType: current.relationType,
+          lagDu: Number(current.lagDu || 0),
           plannedStart: current.plannedStart,
           plannedEnd: current.plannedEnd,
           percentReal: Number(current.percentReal || 0),

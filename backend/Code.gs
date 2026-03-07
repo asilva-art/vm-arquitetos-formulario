@@ -30,7 +30,10 @@ var CONTROL_HEADERS = [
   "DATA ULT. REGISTRO",
   "ID ULT. ENVIO",
   "OBS ULT. REGISTRO",
-  "ORIGEM"
+  "ORIGEM",
+  "PREDECESSORA REF",
+  "RELACAO DEP",
+  "LAG DU"
 ];
 
 var EAP_HEADERS = [
@@ -167,6 +170,57 @@ var EAP_TEMPLATE_ITEMS = [
   { wbs: "10.1.1", phase: "Acompanhamento de Obra e Producao", subphase: "Acompanhamento de Obra", type: "TAREFA", task: "Realizacao de Visitas Tecnicas em Obra (2 visitas)" },
   { wbs: "10.2.1", phase: "Acompanhamento de Obra e Producao", subphase: "Acompanhamento de Producao", type: "TAREFA", task: "Realizacao de Acompanhamento de Producao (1 visita)" }
 ];
+
+var EAP_TEMPLATE_NETWORK = {
+  "1.1.1": { du: 3, deps: [] },
+  "1.1.2": { du: 3, deps: [] },
+  "1.1.3": { du: 2, deps: [] },
+  "2.1.1": { du: 4, deps: ["1.1.1", "1.1.2", "1.1.3"] },
+  "2.1.2": { du: 3, deps: ["2.1.1"] },
+  "2.2.1": { du: 2, deps: ["2.1.2"] },
+  "2.2.2": { du: 1, deps: ["2.2.1"] },
+  "3.1.1": { du: 4, deps: ["2.2.2"] },
+  "3.1.2": { du: 2, deps: ["2.2.2"] },
+  "3.1.3": { du: 2, deps: ["2.2.2"] },
+  "3.2.1": { du: 2, deps: ["3.1.1", "3.1.2", "3.1.3"] },
+  "3.2.2": { du: 1, deps: ["3.2.1"] },
+  "4.1.1": { du: 5, deps: ["3.2.2"] },
+  "4.2.1": { du: 3, deps: ["4.1.1"] },
+  "4.2.2": { du: 1, deps: ["4.2.1"] },
+  "5.1.1": { du: 5, deps: ["3.2.2"] },
+  "5.1.2": { du: 3, deps: ["3.2.2"] },
+  "5.1.3": { du: 3, deps: ["3.2.2"] },
+  "5.2.1": { du: 2, deps: ["5.1.1", "5.1.2", "5.1.3"] },
+  "5.2.2": { du: 1, deps: ["5.2.1"] },
+  "6.1.1": { du: 3, deps: ["5.2.2"] },
+  "6.1.2": { du: 2, deps: ["5.2.2"] },
+  "6.1.3": { du: 2, deps: ["5.2.2"] },
+  "6.1.4": { du: 2, deps: ["5.2.2"] },
+  "7.1.1": { du: 5, deps: ["6.1.1", "6.1.2", "6.1.3", "6.1.4"] },
+  "7.2.1": { du: 3, deps: ["7.1.1"] },
+  "7.2.2": { du: 1, deps: ["7.2.1"] },
+  "8.1.1": { du: 2, deps: ["7.2.2"] },
+  "8.1.2": { du: 2, deps: ["7.2.2"] },
+  "8.1.3": { du: 2, deps: ["7.2.2"] },
+  "8.1.4": { du: 3, deps: ["7.2.2"] },
+  "8.1.5": { du: 3, deps: ["7.2.2"] },
+  "8.2.1": { du: 2, deps: ["7.2.2"] },
+  "8.2.2": { du: 2, deps: ["7.2.2"] },
+  "8.2.3": { du: 2, deps: ["7.2.2"] },
+  "8.2.4": { du: 2, deps: ["7.2.2"] },
+  "8.2.5": { du: 2, deps: ["7.2.2"] },
+  "8.3.1": { du: 2, deps: ["8.1.4"] },
+  "8.3.2": { du: 2, deps: ["8.1.5"] },
+  "8.3.3": { du: 3, deps: ["8.1.4", "8.1.5"] },
+  "8.3.4": { du: 2, deps: ["8.3.3"] },
+  "8.3.5": { du: 2, deps: ["8.2.2", "8.2.4"] },
+  "8.3.6": { du: 2, deps: ["8.3.3"] },
+  "9.1.1": { du: 2, deps: ["8.3.2"] },
+  "9.1.2": { du: 4, deps: ["7.2.2"] },
+  "9.1.3": { du: 2, deps: ["8.3.3"] },
+  "10.1.1": { du: 6, deps: ["8.1.2", "8.2.1", "8.2.2", "8.2.3", "8.2.4", "8.2.5"] },
+  "10.2.1": { du: 3, deps: ["10.1.1", "9.1.2"] }
+};
 
 function doGet(e) {
   PROJECT_MAP_CACHE = null;
@@ -758,14 +812,18 @@ function buildControlRowsFromStandardTemplate_() {
     var project = projects[i];
     for (j = 0; j < EAP_TEMPLATE_ITEMS.length; j += 1) {
       var item = EAP_TEMPLATE_ITEMS[j];
+      var network = EAP_TEMPLATE_NETWORK[item.wbs] || { du: 1, deps: [] };
       rows.push(buildControlRow_({
         projectName: project.projectName,
         contractId: project.contractId,
         refEap: buildRefFromWbs_(project.contractId, item.wbs),
         phase: item.phase,
         task: item.task,
-        prazoDu: "",
+        prazoDu: Math.max(1, toNumber_(network.du, 1)),
         status: STATUS_CONTROL.NAO_INICIADA,
+        predecessorRef: buildDependencyRefTextFromWbs_(project.contractId, network.deps),
+        relationType: "FS",
+        lagDu: 0,
         origem: "EAP_PADRAO_V1"
       }));
     }
@@ -777,12 +835,25 @@ function buildControlRowsFromStandardTemplate_() {
     refEap: "ADMININTERNO-WBS-INT_1",
     phase: "Administrativo/Interno",
     task: "Atividades administrativas internas",
-    prazoDu: "",
+    prazoDu: 1,
     status: STATUS_CONTROL.NAO_INICIADA,
+    predecessorRef: "",
+    relationType: "FS",
+    lagDu: 0,
     origem: "EAP_PADRAO_V1"
   }));
 
   return rows;
+}
+
+function buildDependencyRefTextFromWbs_(contractId, deps) {
+  var list = Array.isArray(deps) ? deps : [];
+  var refs = [];
+  var i;
+  for (i = 0; i < list.length; i += 1) {
+    refs.push(buildRefFromWbs_(contractId, list[i]));
+  }
+  return refs.join("; ");
 }
 
 function getActiveContractProjects_() {
@@ -1070,7 +1141,10 @@ function buildControlRow_(data) {
     clean_(data.lastRecordDate),
     clean_(data.lastFormId),
     clean_(data.lastObservation),
-    clean_(data.origem || "FORM_DAILY")
+    clean_(data.origem || "FORM_DAILY"),
+    clean_(data.predecessorRef),
+    clean_(data.relationType || "FS"),
+    toNumberOrBlank_(data.lagDu, 0)
   ];
 }
 
@@ -1649,6 +1723,44 @@ function parseDate_(value) {
   return isNaN(parsed) ? null : parsed;
 }
 
+function cloneDate_(value) {
+  var base = value instanceof Date ? value : new Date();
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate());
+}
+
+function isBusinessDay_(date) {
+  var day = date.getDay();
+  return day !== 0 && day !== 6;
+}
+
+function nextBusinessDay_(date) {
+  var cursor = cloneDate_(date);
+  while (!isBusinessDay_(cursor)) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return cursor;
+}
+
+function addBusinessDays_(date, businessDays) {
+  var total = Number(businessDays || 0);
+  var cursor = nextBusinessDay_(date);
+  var step = total >= 0 ? 1 : -1;
+  var remaining = Math.abs(total);
+
+  while (remaining > 0) {
+    cursor.setDate(cursor.getDate() + step);
+    if (isBusinessDay_(cursor)) {
+      remaining -= 1;
+    }
+  }
+
+  return cursor;
+}
+
+function subtractBusinessDays_(date, businessDays) {
+  return addBusinessDays_(date, -Math.abs(Number(businessDays || 0)));
+}
+
 function toDateKey_(value) {
   var parsed = parseDate_(value);
   if (!parsed) {
@@ -1866,6 +1978,10 @@ function buildCoordProjectPayload_(contractId) {
       responsible: clean_(row[10]),
       plannedStart: toIsoDateOrBlank_(row[7]),
       plannedEnd: toIsoDateOrBlank_(row[8]),
+      prazoDu: Math.max(1, toNumber_(row[6], 1)),
+      predecessorRef: clean_(row[22]),
+      relationType: clean_(row[23]) || "FS",
+      lagDu: toNumberOrBlank_(row[24], 0),
       percentReal: toNumberOrBlank_(row[13], 0),
       blocked: /^sim/i.test(clean_(row[15])) || status === STATUS_CONTROL.BLOQUEADA,
       blockReason: clean_(row[16]),
@@ -1896,7 +2012,8 @@ function buildCoordProjectPayload_(contractId) {
       projectName: clean_(projectInfo.projectName) || target,
       summary: summary,
       tasks: tasks,
-      events: readEventsByContract_(eventsSheet, target)
+      events: readEventsByContract_(eventsSheet, target),
+      warnings: buildCoordWarningsFromTasks_(tasks)
     }
   };
 }
@@ -1909,6 +2026,7 @@ function handleCoordProjectUpdate_(payload) {
   }
 
   var updates = Array.isArray(payload.updates) ? payload.updates : [];
+  var shouldRecalculate = clean_(payload.recalculate).toLowerCase() !== "false";
   var events = normalizeCoordEvents_(payload.events || []);
   var controlSheet = getOrCreateControlSheet_();
   var rows = readControlRows_(controlSheet);
@@ -1930,8 +2048,12 @@ function handleCoordProjectUpdate_(payload) {
     var row = rows[rowIndex];
     row[9] = update.status;
     row[10] = update.responsible || row[10];
+    row[6] = toNumberOrBlank_(update.prazoDu, 1);
     row[7] = isoToBr_(update.plannedStart);
     row[8] = isoToBr_(update.plannedEnd);
+    row[22] = clean_(update.predecessorRef);
+    row[23] = clean_(update.relationType) || "FS";
+    row[24] = toNumberOrBlank_(update.lagDu, 0);
     row[13] = toNumberOrBlank_(update.percentReal, 0);
     row[15] = update.blocked ? "Sim" : "Nao";
     row[16] = update.blocked ? update.blockReason : "";
@@ -1959,6 +2081,14 @@ function handleCoordProjectUpdate_(payload) {
     updatedTasks += 1;
   }
 
+  var recalcResult = {
+    recalculatedDates: 0,
+    warnings: []
+  };
+  if (shouldRecalculate) {
+    recalcResult = recalculateProjectScheduleRows_(rows, target);
+  }
+
   writeControlRows_(controlSheet, rows);
 
   var eventsSheet = getOrCreateEventsSheet_();
@@ -1969,7 +2099,9 @@ function handleCoordProjectUpdate_(payload) {
     message: "Configuracoes de coordenacao salvas.",
     contractId: target,
     updatedTasks: updatedTasks,
-    savedEvents: savedEvents
+    savedEvents: savedEvents,
+    recalculatedDates: recalcResult.recalculatedDates,
+    warnings: recalcResult.warnings
   });
 }
 
@@ -1982,12 +2114,370 @@ function normalizeCoordTaskUpdate_(item) {
     refEap: clean_(raw.refEap),
     status: status,
     responsible: clean_(raw.responsible),
+    prazoDu: Math.max(1, toNumber_(raw.prazoDu, 1)),
+    predecessorRef: clean_(raw.predecessorRef),
+    relationType: normalizeRelationType_(raw.relationType),
+    lagDu: toNumber_(raw.lagDu, 0),
     plannedStart: clean_(raw.plannedStart),
     plannedEnd: clean_(raw.plannedEnd),
     percentReal: Math.max(0, Math.min(100, toNumber_(raw.percentReal, 0))),
     blocked: blocked || status === STATUS_CONTROL.BLOQUEADA,
     blockReason: clean_(raw.blockReason)
   };
+}
+
+function normalizeRelationType_(value) {
+  var relation = clean_(value).toUpperCase();
+  if (relation === "SS" || relation === "FF" || relation === "SF") {
+    return relation;
+  }
+  return "FS";
+}
+
+function splitDependencyRefs_(value) {
+  var text = clean_(value);
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/[;,]+/)
+    .map(function (item) {
+      return clean_(item);
+    })
+    .filter(function (item) {
+      return !!item;
+    });
+}
+
+function recalculateProjectScheduleRows_(rows, contractId) {
+  var target = clean_(contractId);
+  var taskMap = {};
+  var refs = [];
+  var recalculatedDates = 0;
+  var warnings = [];
+  var i;
+
+  for (i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (clean_(row[2]) !== target) {
+      continue;
+    }
+    var ref = clean_(row[3]);
+    if (!ref) {
+      continue;
+    }
+    taskMap[ref] = row;
+    refs.push(ref);
+  }
+
+  if (!refs.length) {
+    return {
+      recalculatedDates: 0,
+      warnings: []
+    };
+  }
+
+  var orderResult = buildTopologicalOrder_(refs, taskMap);
+  var orderedRefs = orderResult.order;
+  warnings = warnings.concat(orderResult.warnings);
+  var projectStart = inferProjectStartDate_(orderedRefs, taskMap);
+
+  for (i = 0; i < orderedRefs.length; i += 1) {
+    var currentRef = orderedRefs[i];
+    var currentRow = taskMap[currentRef];
+    if (!currentRow) {
+      continue;
+    }
+    if (normalizeControlStatus_(currentRow[9]) === STATUS_CONTROL.CONCLUIDA) {
+      continue;
+    }
+
+    var duration = Math.max(1, toNumber_(currentRow[6], 1));
+    var relationType = normalizeRelationType_(currentRow[23]);
+    var lagDu = toNumber_(currentRow[24], 0);
+    var dependencies = splitDependencyRefs_(currentRow[22]);
+    var currentStart = parseDate_(currentRow[7]) || cloneDate_(projectStart);
+    var computedStart = cloneDate_(currentStart);
+    var depIndex;
+
+    for (depIndex = 0; depIndex < dependencies.length; depIndex += 1) {
+      var depRef = dependencies[depIndex];
+      var predecessorRow = taskMap[depRef];
+      if (!predecessorRow) {
+        warnings.push(currentRef + ": predecessora nao encontrada (" + depRef + ").");
+        continue;
+      }
+
+      var predecessorStart = parseDate_(predecessorRow[7]);
+      var predecessorEnd = parseDate_(predecessorRow[8]);
+      var candidateStart = computeStartByRelation_(predecessorStart, predecessorEnd, relationType, lagDu, duration);
+
+      if (!candidateStart) {
+        warnings.push(currentRef + ": datas insuficientes na predecessora " + depRef + ".");
+        continue;
+      }
+
+      if (candidateStart.getTime() > computedStart.getTime()) {
+        computedStart = cloneDate_(candidateStart);
+      }
+    }
+
+    computedStart = nextBusinessDay_(computedStart);
+    var computedEnd = addBusinessDays_(computedStart, duration - 1);
+    var previousStart = toDateKey_(currentRow[7]);
+    var previousEnd = toDateKey_(currentRow[8]);
+    var nextStart = toDateKey_(computedStart);
+    var nextEnd = toDateKey_(computedEnd);
+
+    if (previousStart !== nextStart || previousEnd !== nextEnd) {
+      recalculatedDates += 1;
+    }
+
+    currentRow[7] = Utilities.formatDate(computedStart, getTz_(), "dd/MM/yyyy");
+    currentRow[8] = Utilities.formatDate(computedEnd, getTz_(), "dd/MM/yyyy");
+  }
+
+  warnings = warnings.concat(buildCoordWarningsFromRows_(rows, target));
+  warnings = dedupeTextList_(warnings).slice(0, 20);
+
+  return {
+    recalculatedDates: recalculatedDates,
+    warnings: warnings
+  };
+}
+
+function buildTopologicalOrder_(refs, taskMap) {
+  var adjacency = {};
+  var indegree = {};
+  var queue = [];
+  var order = [];
+  var warnings = [];
+  var i;
+
+  for (i = 0; i < refs.length; i += 1) {
+    adjacency[refs[i]] = [];
+    indegree[refs[i]] = 0;
+  }
+
+  for (i = 0; i < refs.length; i += 1) {
+    var ref = refs[i];
+    var row = taskMap[ref];
+    var deps = splitDependencyRefs_(row[22]);
+    var j;
+    for (j = 0; j < deps.length; j += 1) {
+      var depRef = deps[j];
+      if (!taskMap[depRef]) {
+        continue;
+      }
+      adjacency[depRef].push(ref);
+      indegree[ref] += 1;
+    }
+  }
+
+  for (i = 0; i < refs.length; i += 1) {
+    if (indegree[refs[i]] === 0) {
+      queue.push(refs[i]);
+    }
+  }
+  queue.sort();
+
+  while (queue.length) {
+    var current = queue.shift();
+    order.push(current);
+    var edges = adjacency[current] || [];
+    var e;
+    for (e = 0; e < edges.length; e += 1) {
+      var next = edges[e];
+      indegree[next] -= 1;
+      if (indegree[next] === 0) {
+        queue.push(next);
+      }
+    }
+    queue.sort();
+  }
+
+  if (order.length < refs.length) {
+    warnings.push("Dependencias com ciclo detectado. Foi aplicada ordenacao por REF EAP como fallback.");
+    refs
+      .slice()
+      .sort()
+      .forEach(function (ref) {
+        if (order.indexOf(ref) < 0) {
+          order.push(ref);
+        }
+      });
+  }
+
+  return {
+    order: order,
+    warnings: warnings
+  };
+}
+
+function inferProjectStartDate_(orderedRefs, taskMap) {
+  var minDate = null;
+  var i;
+
+  for (i = 0; i < orderedRefs.length; i += 1) {
+    var row = taskMap[orderedRefs[i]];
+    if (!row) {
+      continue;
+    }
+    var start = parseDate_(row[7]);
+    if (!start) {
+      continue;
+    }
+    if (!minDate || start.getTime() < minDate.getTime()) {
+      minDate = cloneDate_(start);
+    }
+  }
+
+  if (!minDate) {
+    minDate = new Date();
+  }
+  minDate.setHours(0, 0, 0, 0);
+  return minDate;
+}
+
+function computeStartByRelation_(predStart, predEnd, relationType, lagDu, duration) {
+  var lag = toNumber_(lagDu, 0);
+  var durationDays = Math.max(1, toNumber_(duration, 1));
+  var rel = normalizeRelationType_(relationType);
+  var base;
+  var end;
+
+  if (rel === "SS") {
+    if (!predStart) {
+      return null;
+    }
+    return addBusinessDays_(predStart, lag);
+  }
+
+  if (rel === "FF") {
+    if (!predEnd) {
+      return null;
+    }
+    end = addBusinessDays_(predEnd, lag);
+    return subtractBusinessDays_(end, durationDays - 1);
+  }
+
+  if (rel === "SF") {
+    if (!predStart) {
+      return null;
+    }
+    end = addBusinessDays_(predStart, lag);
+    return subtractBusinessDays_(end, durationDays - 1);
+  }
+
+  base = predEnd || predStart;
+  if (!base) {
+    return null;
+  }
+  return addBusinessDays_(base, lag + 1);
+}
+
+function buildCoordWarningsFromRows_(rows, contractId) {
+  var target = clean_(contractId);
+  var tasks = [];
+  var i;
+
+  for (i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (clean_(row[2]) !== target) {
+      continue;
+    }
+    tasks.push({
+      refEap: clean_(row[3]),
+      status: clean_(row[9]),
+      plannedStart: toIsoDateOrBlank_(row[7]),
+      plannedEnd: toIsoDateOrBlank_(row[8]),
+      predecessorRef: clean_(row[22]),
+      relationType: clean_(row[23]) || "FS",
+      lagDu: toNumberOrBlank_(row[24], 0),
+      prazoDu: toNumberOrBlank_(row[6], 1)
+    });
+  }
+
+  return buildCoordWarningsFromTasks_(tasks);
+}
+
+function buildCoordWarningsFromTasks_(tasks) {
+  var list = Array.isArray(tasks) ? tasks : [];
+  var map = {};
+  var warnings = [];
+  var i;
+
+  for (i = 0; i < list.length; i += 1) {
+    var task = list[i];
+    map[clean_(task.refEap)] = task;
+  }
+
+  for (i = 0; i < list.length; i += 1) {
+    var current = list[i];
+    var ref = clean_(current.refEap);
+    if (!ref) {
+      continue;
+    }
+
+    var deps = splitDependencyRefs_(current.predecessorRef);
+    var d;
+    for (d = 0; d < deps.length; d += 1) {
+      var depRef = deps[d];
+      if (depRef === ref) {
+        warnings.push(ref + ": dependencia circular (ela mesma).");
+        continue;
+      }
+      if (!map[depRef]) {
+        warnings.push(ref + ": predecessora nao encontrada (" + depRef + ").");
+        continue;
+      }
+
+      var pred = map[depRef];
+      var predStart = parseDate_(pred.plannedStart);
+      var predEnd = parseDate_(pred.plannedEnd);
+      var currentStart = parseDate_(current.plannedStart);
+      var requiredStart = computeStartByRelation_(
+        predStart,
+        predEnd,
+        current.relationType,
+        current.lagDu,
+        current.prazoDu
+      );
+
+      if (requiredStart && currentStart && currentStart.getTime() < requiredStart.getTime()) {
+        warnings.push(
+          ref +
+            ": inicio planejado (" +
+            Utilities.formatDate(currentStart, getTz_(), "dd/MM/yyyy") +
+            ") viola dependencia " +
+            depRef +
+            " (" +
+            normalizeRelationType_(current.relationType) +
+            ")."
+        );
+      }
+    }
+  }
+
+  return dedupeTextList_(warnings);
+}
+
+function dedupeTextList_(items) {
+  var source = Array.isArray(items) ? items : [];
+  var map = {};
+  var result = [];
+  var i;
+
+  for (i = 0; i < source.length; i += 1) {
+    var text = clean_(source[i]);
+    if (!text || map[text]) {
+      continue;
+    }
+    map[text] = true;
+    result.push(text);
+  }
+
+  return result;
 }
 
 function normalizeCoordEvents_(events) {
@@ -2348,6 +2838,7 @@ function jsonOrJsonp_(obj, callback) {
 
 function setupControleEapAtual() {
   var context = prepareControlContext_();
+  getOrCreateEventsSheet_();
   return {
     status: "ok",
     sheet: CONTROL_SHEET_NAME,
