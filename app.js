@@ -9,12 +9,18 @@
   var projectListEl = document.getElementById("project-list");
   var projectSectionsEl = document.getElementById("project-sections");
   var feedbackEl = document.getElementById("feedback");
+  var portfolioFilterEl = document.getElementById("portfolio-filter");
+  var portfolioRefreshEl = document.getElementById("portfolio-refresh");
+  var portfolioSummaryEl = document.getElementById("portfolio-summary");
+  var portfolioCardsEl = document.getElementById("portfolio-cards");
+  var portfolioBlocksEl = document.getElementById("portfolio-blocks");
   var guideToggleEl = document.getElementById("guide-toggle");
   var guideStepsEl = document.getElementById("guide-steps");
   var summaryToggleEl = document.getElementById("summary-toggle");
   var dailySummaryEl = document.getElementById("daily-summary");
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
+  var portfolioDataset = [];
 
   var projectMap = {};
   var projectList = [];
@@ -86,6 +92,14 @@
 
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
+    if (portfolioFilterEl) {
+      portfolioFilterEl.addEventListener("change", renderPortfolioOverview);
+    }
+    if (portfolioRefreshEl) {
+      portfolioRefreshEl.addEventListener("click", function () {
+        loadRefOptionsFromServer();
+      });
+    }
     if (guideToggleEl && guideStepsEl) {
       guideToggleEl.addEventListener("click", handleGuideToggle);
     }
@@ -94,6 +108,8 @@
     }
 
     loadRefOptionsFromServer();
+    portfolioDataset = buildPortfolioDataset_();
+    renderPortfolioOverview();
     clearSummaryUI();
   }
 
@@ -174,6 +190,7 @@
 
   function handleProjectSelectionChange() {
     renderProjectSections(getSelectedProjectCodes());
+    renderPortfolioOverview();
   }
 
   function renderProjectSections(selectedCodes) {
@@ -476,6 +493,7 @@
           showFeedback("ok", msg);
           setSummaryForSubmission(result.data.dailySummary || buildFallbackDailySummary(payload));
           resetForm();
+          loadRefOptionsFromServer();
           return;
         }
 
@@ -489,6 +507,7 @@
           "Envio realizado no modo de compatibilidade. Confirme a entrada na aba EXECUCAO da planilha."
         );
         resetForm();
+        loadRefOptionsFromServer();
       })
       .catch(function (err) {
         showFeedback("error", err.message || "Nao foi possivel enviar. Tente novamente.");
@@ -538,6 +557,8 @@
   function loadRefOptionsFromServer() {
     var appsScriptUrl = cleanText(cfg.appsScriptUrl);
     if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      portfolioDataset = buildPortfolioDataset_();
+      renderPortfolioOverview();
       return;
     }
 
@@ -576,6 +597,8 @@
           }
 
           renderProjectSections(getSelectedProjectCodes());
+          portfolioDataset = buildPortfolioDataset_();
+          renderPortfolioOverview();
         }
       } finally {
         finish();
@@ -592,6 +615,309 @@
     document.body.appendChild(script);
 
     setTimeout(finish, 12000);
+  }
+
+  function renderPortfolioOverview() {
+    if (!portfolioSummaryEl || !portfolioCardsEl || !portfolioBlocksEl) {
+      return;
+    }
+
+    var dataset = Array.isArray(portfolioDataset) ? portfolioDataset : [];
+    var filtered = applyPortfolioFilter_(dataset);
+
+    renderPortfolioSummary_(filtered);
+    renderPortfolioCards_(filtered);
+    renderPortfolioBlocks_(filtered);
+  }
+
+  function applyPortfolioFilter_(dataset) {
+    var mode = cleanText(portfolioFilterEl && portfolioFilterEl.value);
+    if (mode !== "selected") {
+      return dataset.slice();
+    }
+
+    var selected = getSelectedProjectCodes();
+    if (!selected.length) {
+      return [];
+    }
+
+    return dataset.filter(function (item) {
+      return selected.indexOf(item.code) >= 0;
+    });
+  }
+
+  function buildPortfolioDataset_() {
+    var data = [];
+
+    projectList.forEach(function (project) {
+      var code = cleanText(project.code);
+      if (!code || code === "ADMIN-INTERNO") {
+        return;
+      }
+
+      var optionList = getRefOptionsForProject(code);
+      var totals = buildPortfolioCountsFromOptions_(code, optionList);
+      var nextTasks = buildPortfolioNextTasks_(optionList);
+      var blockedItems = buildPortfolioBlockedItems_(optionList);
+
+      data.push({
+        code: code,
+        label: cleanText(project.label) || code,
+        total: totals.total,
+        concluida: totals.concluida,
+        emAndamento: totals.emAndamento,
+        bloqueada: totals.bloqueada,
+        naoIniciada: totals.naoIniciada,
+        pendentes: totals.pendentes,
+        percentual: totals.percentual,
+        semaforo: classifyPortfolioSemaforo_(totals),
+        nextTasks: nextTasks,
+        blockedItems: blockedItems
+      });
+    });
+
+    data.sort(function (a, b) {
+      return String(a.code).localeCompare(String(b.code));
+    });
+    return data;
+  }
+
+  function buildPortfolioCountsFromOptions_(projectCode, optionList) {
+    var total = expectedTotalTasks_(projectCode);
+    var emAndamento = 0;
+    var bloqueada = 0;
+    var naoIniciada = 0;
+    var i;
+
+    for (i = 0; i < optionList.length; i += 1) {
+      var status = normalizePortfolioStatus_(optionList[i] && optionList[i].status);
+      if (status === "BLOQUEADA") {
+        bloqueada += 1;
+      } else if (status === "EM ANDAMENTO") {
+        emAndamento += 1;
+      } else {
+        naoIniciada += 1;
+      }
+    }
+
+    var pendentes = emAndamento + bloqueada + naoIniciada;
+    var concluida = Math.max(total - pendentes, 0);
+    var percentual = total > 0 ? Math.round((concluida / total) * 100) : 0;
+
+    return {
+      total: total,
+      concluida: concluida,
+      emAndamento: emAndamento,
+      bloqueada: bloqueada,
+      naoIniciada: naoIniciada,
+      pendentes: pendentes,
+      percentual: percentual
+    };
+  }
+
+  function expectedTotalTasks_(projectCode) {
+    if (projectCode === "ADMIN-INTERNO") {
+      return 1;
+    }
+    if (/^CT-\d+$/i.test(projectCode)) {
+      return LOCAL_EAP_TEMPLATE.length;
+    }
+    return Math.max(getRefOptionsForProject(projectCode).length, 1);
+  }
+
+  function normalizePortfolioStatus_(value) {
+    var text = cleanText(value).toUpperCase();
+    if (text.indexOf("BLOQUE") >= 0) {
+      return "BLOQUEADA";
+    }
+    if (text.indexOf("ANDAMENTO") >= 0) {
+      return "EM ANDAMENTO";
+    }
+    if (text.indexOf("CONCL") >= 0) {
+      return "CONCLUIDA";
+    }
+    return "NAO INICIADA";
+  }
+
+  function classifyPortfolioSemaforo_(totals) {
+    if (totals.bloqueada > 0) {
+      return "red";
+    }
+    if (totals.percentual >= 85) {
+      return "green";
+    }
+    return "yellow";
+  }
+
+  function buildPortfolioNextTasks_(optionList) {
+    return optionList
+      .map(function (item) {
+        var parsed = parseRefOptionLabel(cleanText(item && item.label));
+        var status = normalizePortfolioStatus_(item && item.status);
+        return {
+          refEap: parsed.refEap,
+          task: parsed.task || parsed.phase || parsed.refEap,
+          status: status
+        };
+      })
+      .sort(function (a, b) {
+        return portfolioTaskPriority_(a.status) - portfolioTaskPriority_(b.status);
+      })
+      .slice(0, 3);
+  }
+
+  function buildPortfolioBlockedItems_(optionList) {
+    return optionList
+      .map(function (item) {
+        var parsed = parseRefOptionLabel(cleanText(item && item.label));
+        return {
+          refEap: parsed.refEap,
+          task: parsed.task || parsed.phase || parsed.refEap,
+          status: normalizePortfolioStatus_(item && item.status)
+        };
+      })
+      .filter(function (item) {
+        return item.status === "BLOQUEADA";
+      });
+  }
+
+  function portfolioTaskPriority_(status) {
+    if (status === "EM ANDAMENTO") {
+      return 1;
+    }
+    if (status === "BLOQUEADA") {
+      return 2;
+    }
+    if (status === "NAO INICIADA") {
+      return 3;
+    }
+    return 4;
+  }
+
+  function renderPortfolioSummary_(items) {
+    if (!items.length) {
+      portfolioSummaryEl.innerHTML = '<div class="portfolio-empty">Selecione projetos ou aguarde a atualizacao de dados.</div>';
+      return;
+    }
+
+    var totais = {
+      projetos: items.length,
+      verde: 0,
+      amarelo: 0,
+      vermelho: 0,
+      bloqueios: 0
+    };
+
+    items.forEach(function (item) {
+      if (item.semaforo === "green") {
+        totais.verde += 1;
+      } else if (item.semaforo === "yellow") {
+        totais.amarelo += 1;
+      } else {
+        totais.vermelho += 1;
+      }
+      totais.bloqueios += item.bloqueada;
+    });
+
+    portfolioSummaryEl.innerHTML = [
+      buildPortfolioStat_("Projetos", totais.projetos),
+      buildPortfolioStat_("Semaforo Verde", totais.verde),
+      buildPortfolioStat_("Semaforo Amarelo", totais.amarelo),
+      buildPortfolioStat_("Semaforo Vermelho", totais.vermelho),
+      buildPortfolioStat_("Bloqueios", totais.bloqueios)
+    ].join("");
+  }
+
+  function buildPortfolioStat_(label, value) {
+    return (
+      '<article class="portfolio-stat"><strong>' +
+      escapeHtml(String(value)) +
+      "</strong><span>" +
+      escapeHtml(label) +
+      "</span></article>"
+    );
+  }
+
+  function renderPortfolioCards_(items) {
+    if (!items.length) {
+      portfolioCardsEl.innerHTML = '<div class="portfolio-empty">Nenhum projeto para exibir neste filtro.</div>';
+      return;
+    }
+
+    portfolioCardsEl.innerHTML = items
+      .map(function (item) {
+        var nextTasks = item.nextTasks.length
+          ? "<ul>" +
+            item.nextTasks
+              .map(function (task) {
+                return "<li>" + escapeHtml(task.refEap + " - " + task.task) + "</li>";
+              })
+              .join("") +
+            "</ul>"
+          : "<p class='portfolio-empty'>Sem proximo foco identificado.</p>";
+
+        return [
+          '<article class="portfolio-card">',
+          '<div class="portfolio-card-head">',
+          "<h3>" + escapeHtml(item.label) + "</h3>",
+          '<span class="portfolio-badge ' + escapeAttr(item.semaforo) + '">' + escapeHtml(labelSemaforo_(item.semaforo)) + "</span>",
+          "</div>",
+          '<div class="portfolio-progress">',
+          '<div class="portfolio-progress-meta"><span>Concluido</span><strong>' + escapeHtml(String(item.percentual)) + "%</strong></div>",
+          '<div class="portfolio-progress-bar"><div class="portfolio-progress-fill" style="width:' + escapeAttr(String(Math.max(0, Math.min(100, item.percentual)))) + '%;"></div></div>',
+          "</div>",
+          '<div class="portfolio-metrics">',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.concluida)) + '</strong><span>Concluidas</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.emAndamento)) + '</strong><span>Em andamento</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.bloqueada)) + '</strong><span>Bloqueadas</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.naoIniciada)) + '</strong><span>Nao iniciadas</span></div>',
+          "</div>",
+          '<div class="portfolio-next"><h4>Proximo foco</h4>' + nextTasks + "</div>",
+          "</article>"
+        ].join("");
+      })
+      .join("");
+  }
+
+  function renderPortfolioBlocks_(items) {
+    var blocks = [];
+    items.forEach(function (item) {
+      item.blockedItems.forEach(function (block) {
+        blocks.push({
+          project: item.label,
+          refEap: block.refEap,
+          task: block.task
+        });
+      });
+    });
+
+    if (!blocks.length) {
+      portfolioBlocksEl.innerHTML = '<div class="portfolio-empty">Nenhum bloqueio ativo no filtro atual.</div>';
+      return;
+    }
+
+    portfolioBlocksEl.innerHTML = blocks
+      .slice(0, 12)
+      .map(function (block) {
+        return (
+          '<article class="portfolio-block-item"><strong>' +
+          escapeHtml(block.project) +
+          "</strong><p>" +
+          escapeHtml(block.refEap + " - " + block.task) +
+          "</p></article>"
+        );
+      })
+      .join("");
+  }
+
+  function labelSemaforo_(value) {
+    if (value === "green") {
+      return "Verde";
+    }
+    if (value === "red") {
+      return "Vermelho";
+    }
+    return "Amarelo";
   }
 
   function buildUrlWithParams(url, params) {

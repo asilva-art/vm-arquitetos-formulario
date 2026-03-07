@@ -111,6 +111,35 @@
         </div>
       </section>
 
+      <section id="portfolio-panel" class="portfolio-panel card" aria-live="polite">
+        <div class="portfolio-head">
+          <div>
+            <p class="portfolio-kicker">Painel de Portfolio</p>
+            <h2>Status visual dos projetos</h2>
+            <p class="portfolio-subtitle">
+              Visao rapida de andamento, bloqueios e proximo foco. Atualiza com os dados mais recentes do formulario.
+            </p>
+          </div>
+          <button id="portfolio-refresh" class="portfolio-refresh" type="button">Atualizar painel</button>
+        </div>
+
+        <div class="portfolio-tools">
+          <label for="portfolio-filter">Exibicao</label>
+          <select id="portfolio-filter" name="portfolioFilter">
+            <option value="all">Todos os projetos</option>
+            <option value="selected">Somente projetos marcados hoje</option>
+          </select>
+        </div>
+
+        <section id="portfolio-summary" class="portfolio-summary"></section>
+        <section id="portfolio-cards" class="portfolio-cards"></section>
+
+        <section class="portfolio-blocks-wrap">
+          <h3>Bloqueios ativos</h3>
+          <div id="portfolio-blocks" class="portfolio-blocks"></div>
+        </section>
+      </section>
+
       <section class="card">
         <form id="daily-form" novalidate>
           <div class="field">
@@ -154,7 +183,7 @@
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
     </main>
 
-    <script src="./config.js?v=20260307b"></script>
-    <script src="./app.js?v=20260307b"></script>
+    <script src="./config.js?v=20260307c"></script>
+    <script src="./app.js?v=20260307c"></script>
   </body>
 </html>
