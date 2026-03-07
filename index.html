@@ -260,9 +260,46 @@
         </div>
         <div id="history-list" class="history-list"></div>
       </section>
+
+      <section id="coord-modal" class="coord-modal hidden" aria-hidden="true">
+        <div id="coord-overlay" class="coord-overlay"></div>
+        <article class="coord-card" role="dialog" aria-modal="true" aria-labelledby="coord-title">
+          <header class="coord-head">
+            <div>
+              <p class="coord-kicker">Modo Coordenacao</p>
+              <h3 id="coord-title">Configuracao do projeto</h3>
+              <p id="coord-subtitle" class="coord-subtitle"></p>
+            </div>
+            <button id="coord-close" class="coord-close" type="button" aria-label="Fechar coordenacao">Fechar</button>
+          </header>
+
+          <section class="coord-section">
+            <div class="coord-tools">
+              <label for="coord-filter">Tarefas</label>
+              <select id="coord-filter" name="coordFilter">
+                <option value="all">Todas</option>
+                <option value="open">Abertas (nao concluidas)</option>
+                <option value="late">Atrasadas</option>
+                <option value="blocked">Bloqueadas</option>
+              </select>
+              <button id="coord-save" class="coord-save" type="button">Salvar configuracoes do projeto</button>
+            </div>
+            <p id="coord-feedback" class="coord-feedback hidden"></p>
+            <div id="coord-task-list" class="coord-task-list"></div>
+          </section>
+
+          <section class="coord-section">
+            <div class="coord-events-head">
+              <h4>Programacao de proximos eventos</h4>
+              <button id="coord-add-event" class="coord-add-event" type="button">Adicionar evento</button>
+            </div>
+            <div id="coord-events-list" class="coord-events-list"></div>
+          </section>
+        </article>
+      </section>
     </main>
 
-    <script src="./config.js?v=20260307j"></script>
-    <script src="./app.js?v=20260307j"></script>
+    <script src="./config.js?v=20260307k"></script>
+    <script src="./app.js?v=20260307k"></script>
   </body>
 </html>

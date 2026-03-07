@@ -9,11 +9,13 @@
 - Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
 - Expõe `action=ppm_snapshot` com status por tarefa e datas (planejado/real) da `📌 CONTROLE_EAP_ATUAL`.
 - Expõe `action=history` com os ultimos envios (ate 10 por padrao), com filtro opcional por profissional.
+- Expõe `action=coord_project` para abrir a configuracao completa de um projeto (tarefas + eventos).
 - Le contratos automaticamente da aba `CONTRATOS` (IDs `CT-...`) para montar os projetos ativos.
 - Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
 - Permite editar envio existente via `editFormId` sem criar duplicata, reconstruindo o controle automaticamente.
+- Permite salvar ajustes de coordenacao via `action=coord_update_project` (datas, status, responsavel, bloqueio e eventos).
 - Inclui reset total para reconstruir a base com `EAP_PADRAO_V1` (10 fases / 48 itens).
 
 ## Arquivos
@@ -44,6 +46,7 @@
 - `resetBancoDoZeroEapPadrao`: apaga dados operacionais e recria EAP/controle com o padrao.
 - `sincronizarControleComExecucaoHistorica`: reprocesa historico da EXECUCAO para atualizar controle.
 - `resumoControleEapAtual`: retorna contagem por status (nao iniciada, andamento, concluida, bloqueada).
+- `EVENTOS_COORDENACAO`: aba auxiliar para programacao de eventos por projeto.
 
 ## Ajustes comuns
 

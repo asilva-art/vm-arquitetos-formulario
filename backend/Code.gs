@@ -1,9 +1,11 @@
 var EXEC_SHEET_NAME = "⚙️ EXECUÇÃO";
 var EAP_SHEET_NAME = "📅 EAP - LINHA DE BASE";
 var CONTROL_SHEET_NAME = "📌 CONTROLE_EAP_ATUAL";
+var EVENTS_SHEET_NAME = "📍 EVENTOS_COORDENACAO";
 var EXEC_DATA_START_ROW = 5;
 var EAP_DATA_START_ROW = 4;
 var CONTROL_DATA_START_ROW = 2;
+var EVENTS_DATA_START_ROW = 2;
 var DEFAULT_TZ = "America/Sao_Paulo";
 
 var CONTROL_HEADERS = [
@@ -44,6 +46,19 @@ var EAP_HEADERS = [
   "MARCO",
   "OBS",
   "ORIGEM"
+];
+
+var EVENTS_HEADERS = [
+  "ID EVENTO",
+  "ID CT",
+  "DATA EVENTO",
+  "TIPO",
+  "TITULO",
+  "RESPONSAVEL",
+  "STATUS",
+  "OBS",
+  "ATUALIZADO EM",
+  "ATUALIZADO POR"
 ];
 
 var STATUS_CONTROL = {
@@ -181,6 +196,11 @@ function doGet(e) {
     return jsonOrJsonp_(response, callback);
   }
 
+  if (action === "coord_project") {
+    response = buildCoordProjectPayload_(e && e.parameter ? e.parameter.contractId : "");
+    return jsonOrJsonp_(response, callback);
+  }
+
   if (action === "history") {
     response = buildHistoryPayload_(
       e && e.parameter ? e.parameter.professional : "",
@@ -211,6 +231,10 @@ function doPost(e) {
     lockAcquired = true;
 
     var payload = parsePayload_(e);
+    if (clean_(payload.action) === "coord_update_project") {
+      return handleCoordProjectUpdate_(payload);
+    }
+
     var input = normalizePayload_(payload);
     var editFormId = clean_(payload.editFormId);
     var executionSheet = getExecutionSheet_();
@@ -458,6 +482,16 @@ function clearExecutionData_(sheet) {
   return rowsToClear;
 }
 
+function clearEventsData_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < EVENTS_DATA_START_ROW) {
+    return 0;
+  }
+  var rowsToClear = lastRow - EVENTS_DATA_START_ROW + 1;
+  sheet.getRange(EVENTS_DATA_START_ROW, 1, rowsToClear, EVENTS_HEADERS.length).clearContent();
+  return rowsToClear;
+}
+
 function getOrCreateControlSheet_() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = spreadsheet.getSheetByName(CONTROL_SHEET_NAME);
@@ -509,6 +543,139 @@ function writeControlRows_(sheet, rows) {
   if (rows && rows.length) {
     sheet.getRange(CONTROL_DATA_START_ROW, 1, rows.length, CONTROL_HEADERS.length).setValues(rows);
   }
+}
+
+function getOrCreateEventsSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(EVENTS_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(EVENTS_SHEET_NAME);
+  }
+
+  ensureEventsHeader_(sheet);
+  return sheet;
+}
+
+function ensureEventsHeader_(sheet) {
+  var current = sheet.getRange(1, 1, 1, EVENTS_HEADERS.length).getValues()[0];
+  var needsUpdate = false;
+  var i;
+
+  for (i = 0; i < EVENTS_HEADERS.length; i += 1) {
+    if (clean_(current[i]) !== EVENTS_HEADERS[i]) {
+      needsUpdate = true;
+      break;
+    }
+  }
+
+  if (needsUpdate) {
+    sheet.getRange(1, 1, 1, EVENTS_HEADERS.length).setValues([EVENTS_HEADERS]);
+    sheet.getRange(1, 1, 1, EVENTS_HEADERS.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+}
+
+function readEventsByContract_(sheet, contractId) {
+  var target = clean_(contractId);
+  var values = [];
+  var result = [];
+  var lastRow = sheet.getLastRow();
+  var i;
+
+  if (!target || lastRow < EVENTS_DATA_START_ROW) {
+    return result;
+  }
+
+  values = sheet.getRange(EVENTS_DATA_START_ROW, 1, lastRow - EVENTS_DATA_START_ROW + 1, EVENTS_HEADERS.length).getValues();
+
+  for (i = 0; i < values.length; i += 1) {
+    var row = values[i];
+    if (clean_(row[1]) !== target) {
+      continue;
+    }
+    result.push({
+      eventDate: toIsoDateOrBlank_(row[2]),
+      eventType: clean_(row[3]),
+      title: clean_(row[4]),
+      responsible: clean_(row[5]),
+      status: clean_(row[6]) || "Planejado",
+      observation: clean_(row[7])
+    });
+  }
+
+  result.sort(function (a, b) {
+    var left = clean_(a.eventDate);
+    var right = clean_(b.eventDate);
+    if (left && right) {
+      return left.localeCompare(right);
+    }
+    if (left) {
+      return -1;
+    }
+    if (right) {
+      return 1;
+    }
+    return clean_(a.title).localeCompare(clean_(b.title));
+  });
+
+  return result;
+}
+
+function replaceEventsByContract_(sheet, contractId, events, editor) {
+  var target = clean_(contractId);
+  var safeEditor = clean_(editor) || "COORDENACAO";
+  var nowBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
+  var lastRow = sheet.getLastRow();
+  var toDelete = [];
+  var i;
+
+  if (!target) {
+    return 0;
+  }
+
+  if (lastRow >= EVENTS_DATA_START_ROW) {
+    var values = sheet
+      .getRange(EVENTS_DATA_START_ROW, 1, lastRow - EVENTS_DATA_START_ROW + 1, EVENTS_HEADERS.length)
+      .getValues();
+    for (i = 0; i < values.length; i += 1) {
+      if (clean_(values[i][1]) === target) {
+        toDelete.push(EVENTS_DATA_START_ROW + i);
+      }
+    }
+  }
+
+  toDelete.sort(function (a, b) {
+    return b - a;
+  });
+  for (i = 0; i < toDelete.length; i += 1) {
+    sheet.deleteRow(toDelete[i]);
+  }
+
+  if (!events || !events.length) {
+    return 0;
+  }
+
+  var rows = [];
+  for (i = 0; i < events.length; i += 1) {
+    var item = events[i];
+    rows.push([
+      target + "-EV-" + pad_(i + 1, 3),
+      target,
+      isoToBr_(item.eventDate),
+      clean_(item.eventType),
+      clean_(item.title),
+      clean_(item.responsible),
+      clean_(item.status) || "Planejado",
+      clean_(item.observation),
+      nowBr,
+      safeEditor
+    ]);
+  }
+
+  var startRow = Math.max(sheet.getLastRow() + 1, EVENTS_DATA_START_ROW);
+  sheet.getRange(startRow, 1, rows.length, EVENTS_HEADERS.length).setValues(rows);
+  return rows.length;
 }
 
 function prepareControlContext_() {
@@ -1657,6 +1824,228 @@ function buildPpmSnapshotPayload_() {
   };
 }
 
+function buildCoordProjectPayload_(contractId) {
+  var target = clean_(contractId);
+  if (!target) {
+    return {
+      status: "error",
+      message: "Informe o contractId para abrir a coordenacao."
+    };
+  }
+
+  var controlSheet = getOrCreateControlSheet_();
+  var controlRows = readControlRows_(controlSheet);
+  var eventsSheet = getOrCreateEventsSheet_();
+  var projectInfo = getProjectMap_()[target] || {
+    projectName: target,
+    contractId: target,
+    sectionName: "Secao " + target
+  };
+  var tasks = [];
+  var summary = {
+    total: 0,
+    concluida: 0,
+    emAndamento: 0,
+    bloqueada: 0,
+    naoIniciada: 0
+  };
+  var i;
+
+  for (i = 0; i < controlRows.length; i += 1) {
+    var row = controlRows[i];
+    if (clean_(row[2]) !== target) {
+      continue;
+    }
+
+    var status = normalizeControlStatus_(row[9]);
+    tasks.push({
+      refEap: clean_(row[3]),
+      phase: clean_(row[4]),
+      task: clean_(row[5]),
+      status: status,
+      responsible: clean_(row[10]),
+      plannedStart: toIsoDateOrBlank_(row[7]),
+      plannedEnd: toIsoDateOrBlank_(row[8]),
+      percentReal: toNumberOrBlank_(row[13], 0),
+      blocked: /^sim/i.test(clean_(row[15])) || status === STATUS_CONTROL.BLOQUEADA,
+      blockReason: clean_(row[16]),
+      updatedAt: toIsoDateOrBlank_(row[17]),
+      lastRecordDate: toIsoDateOrBlank_(row[18])
+    });
+
+    summary.total += 1;
+    if (status === STATUS_CONTROL.CONCLUIDA) {
+      summary.concluida += 1;
+    } else if (status === STATUS_CONTROL.EM_ANDAMENTO) {
+      summary.emAndamento += 1;
+    } else if (status === STATUS_CONTROL.BLOQUEADA) {
+      summary.bloqueada += 1;
+    } else {
+      summary.naoIniciada += 1;
+    }
+  }
+
+  tasks.sort(function (a, b) {
+    return clean_(a.refEap).localeCompare(clean_(b.refEap));
+  });
+
+  return {
+    status: "ok",
+    project: {
+      contractId: target,
+      projectName: clean_(projectInfo.projectName) || target,
+      summary: summary,
+      tasks: tasks,
+      events: readEventsByContract_(eventsSheet, target)
+    }
+  };
+}
+
+function handleCoordProjectUpdate_(payload) {
+  var target = clean_(payload.contractId);
+  var editor = clean_(payload.editor) || "COORDENACAO";
+  if (!target) {
+    throw new Error("contractId obrigatorio para salvar coordenacao.");
+  }
+
+  var updates = Array.isArray(payload.updates) ? payload.updates : [];
+  var events = normalizeCoordEvents_(payload.events || []);
+  var controlSheet = getOrCreateControlSheet_();
+  var rows = readControlRows_(controlSheet);
+  var nowBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
+  var updatedTasks = 0;
+  var i;
+
+  for (i = 0; i < updates.length; i += 1) {
+    var update = normalizeCoordTaskUpdate_(updates[i]);
+    if (!update || !update.refEap) {
+      continue;
+    }
+
+    var rowIndex = findControlRowByContractAndRef_(rows, target, update.refEap);
+    if (rowIndex < 0) {
+      continue;
+    }
+
+    var row = rows[rowIndex];
+    row[9] = update.status;
+    row[10] = update.responsible || row[10];
+    row[7] = isoToBr_(update.plannedStart);
+    row[8] = isoToBr_(update.plannedEnd);
+    row[13] = toNumberOrBlank_(update.percentReal, 0);
+    row[15] = update.blocked ? "Sim" : "Nao";
+    row[16] = update.blocked ? update.blockReason : "";
+    row[17] = nowBr;
+    row[18] = clean_(row[18]);
+    row[21] = "COORD_CARD";
+
+    if (update.status === STATUS_CONTROL.EM_ANDAMENTO && !clean_(row[11])) {
+      row[11] = nowBr;
+    }
+    if (update.status === STATUS_CONTROL.CONCLUIDA) {
+      if (!clean_(row[11])) {
+        row[11] = nowBr;
+      }
+      row[12] = nowBr;
+      row[13] = 100;
+      row[15] = "Nao";
+      row[16] = "";
+    }
+    if (update.status !== STATUS_CONTROL.CONCLUIDA) {
+      row[12] = clean_(row[12]);
+    }
+
+    row[14] = calculateDelayDays_(row[8], update.status === STATUS_CONTROL.CONCLUIDA ? row[12] : nowBr);
+    updatedTasks += 1;
+  }
+
+  writeControlRows_(controlSheet, rows);
+
+  var eventsSheet = getOrCreateEventsSheet_();
+  var savedEvents = replaceEventsByContract_(eventsSheet, target, events, editor);
+
+  return json_({
+    status: "ok",
+    message: "Configuracoes de coordenacao salvas.",
+    contractId: target,
+    updatedTasks: updatedTasks,
+    savedEvents: savedEvents
+  });
+}
+
+function normalizeCoordTaskUpdate_(item) {
+  var raw = item || {};
+  var status = normalizeControlStatus_(raw.status);
+  var blocked = clean_(raw.blocked) === "Sim" || clean_(raw.blocked).toUpperCase() === "TRUE";
+
+  return {
+    refEap: clean_(raw.refEap),
+    status: status,
+    responsible: clean_(raw.responsible),
+    plannedStart: clean_(raw.plannedStart),
+    plannedEnd: clean_(raw.plannedEnd),
+    percentReal: Math.max(0, Math.min(100, toNumber_(raw.percentReal, 0))),
+    blocked: blocked || status === STATUS_CONTROL.BLOQUEADA,
+    blockReason: clean_(raw.blockReason)
+  };
+}
+
+function normalizeCoordEvents_(events) {
+  var source = Array.isArray(events) ? events : [];
+  var result = [];
+  var i;
+
+  for (i = 0; i < source.length; i += 1) {
+    var item = source[i] || {};
+    var normalized = {
+      eventDate: clean_(item.eventDate),
+      eventType: clean_(item.eventType),
+      title: clean_(item.title),
+      responsible: clean_(item.responsible),
+      status: clean_(item.status) || "Planejado",
+      observation: clean_(item.observation)
+    };
+
+    if (!normalized.eventDate && !normalized.eventType && !normalized.title && !normalized.observation) {
+      continue;
+    }
+    result.push(normalized);
+  }
+
+  result.sort(function (a, b) {
+    var left = clean_(a.eventDate);
+    var right = clean_(b.eventDate);
+    if (left && right) {
+      return left.localeCompare(right);
+    }
+    if (left) {
+      return -1;
+    }
+    if (right) {
+      return 1;
+    }
+    return clean_(a.title).localeCompare(clean_(b.title));
+  });
+
+  return result;
+}
+
+function findControlRowByContractAndRef_(rows, contractId, refEap) {
+  var targetContract = clean_(contractId);
+  var targetRef = clean_(refEap);
+  var i;
+
+  for (i = 0; i < rows.length; i += 1) {
+    if (clean_(rows[i][2]) !== targetContract) {
+      continue;
+    }
+    if (clean_(rows[i][3]) === targetRef) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function buildHistoryPayload_(professional, limit) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EXEC_SHEET_NAME);
   var maxItems = Number(limit);
@@ -1739,6 +2128,14 @@ function toIsoDateOrBlank_(value) {
     return "";
   }
   return Utilities.formatDate(parsed, getTz_(), "yyyy-MM-dd");
+}
+
+function isoToBr_(value) {
+  var parsed = parseDate_(value);
+  if (!parsed) {
+    return "";
+  }
+  return Utilities.formatDate(parsed, getTz_(), "dd/MM/yyyy");
 }
 
 function buildRefOptionsByProject_() {
@@ -1963,8 +2360,10 @@ function resetBancoDoZeroEapPadrao() {
   var executionSheet = getExecutionSheet_();
   var eapSheet = getOrCreateEapSheet_();
   var controlSheet = getOrCreateControlSheet_();
+  var eventsSheet = getOrCreateEventsSheet_();
 
   var clearedExecutionRows = clearExecutionData_(executionSheet);
+  var clearedEventsRows = clearEventsData_(eventsSheet);
   var eapRows = buildBaselineRowsFromStandardTemplate_();
   writeEapRows_(eapSheet, eapRows);
 
@@ -1976,6 +2375,7 @@ function resetBancoDoZeroEapPadrao() {
     message: "Reset completo concluido com a EAP padrao.",
     templateVersion: "EAP_PADRAO_V1",
     executionRowsCleared: clearedExecutionRows,
+    eventsRowsCleared: clearedEventsRows,
     eapRowsCreated: eapRows.length,
     controlRowsCreated: controlRows.length
   };

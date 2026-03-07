@@ -39,6 +39,17 @@
   var historyPanelEl = document.getElementById("history-panel");
   var historyListEl = document.getElementById("history-list");
   var historyRefreshEl = document.getElementById("history-refresh");
+  var coordModalEl = document.getElementById("coord-modal");
+  var coordOverlayEl = document.getElementById("coord-overlay");
+  var coordTitleEl = document.getElementById("coord-title");
+  var coordSubtitleEl = document.getElementById("coord-subtitle");
+  var coordCloseEl = document.getElementById("coord-close");
+  var coordFilterEl = document.getElementById("coord-filter");
+  var coordSaveEl = document.getElementById("coord-save");
+  var coordFeedbackEl = document.getElementById("coord-feedback");
+  var coordTaskListEl = document.getElementById("coord-task-list");
+  var coordAddEventEl = document.getElementById("coord-add-event");
+  var coordEventsListEl = document.getElementById("coord-events-list");
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
   var lastMeetingSummaryText = "";
@@ -50,6 +61,15 @@
   var draftSaveTimer = null;
   var portfolioDataset = [];
   var ppmSnapshotMap = {};
+  var coordState = {
+    open: false,
+    contractId: "",
+    projectName: "",
+    tasks: [],
+    events: [],
+    originalTasksByRef: {},
+    originalEventsKey: ""
+  };
 
   var STORAGE_KEYS = {
     LAST_PROFESSIONAL: "vm_form_last_professional_v1",
@@ -257,6 +277,31 @@
     if (retryQueueEl) {
       retryQueueEl.addEventListener("click", flushOfflineQueue_);
     }
+    if (portfolioCardsEl) {
+      portfolioCardsEl.addEventListener("click", handlePortfolioCardClick_);
+      portfolioCardsEl.addEventListener("keydown", handlePortfolioCardKeydown_);
+    }
+    if (coordCloseEl) {
+      coordCloseEl.addEventListener("click", closeCoordPanel_);
+    }
+    if (coordOverlayEl) {
+      coordOverlayEl.addEventListener("click", closeCoordPanel_);
+    }
+    if (coordSaveEl) {
+      coordSaveEl.addEventListener("click", handleCoordSave_);
+    }
+    if (coordFilterEl) {
+      coordFilterEl.addEventListener("change", applyCoordFilter_);
+    }
+    if (coordAddEventEl) {
+      coordAddEventEl.addEventListener("click", function () {
+        addCoordEventRow_();
+      });
+    }
+    if (coordEventsListEl) {
+      coordEventsListEl.addEventListener("click", handleCoordEventRemove_);
+    }
+    document.addEventListener("keydown", handleCoordModalKeydown_);
     window.addEventListener("online", function () {
       updateOfflineQueueUi_();
       flushOfflineQueue_();
@@ -2507,7 +2552,7 @@
           : "<p class='portfolio-empty'>Sem proximo foco identificado.</p>";
 
         return [
-          '<article class="portfolio-card">',
+          '<article class="portfolio-card" data-contract-id="' + escapeAttr(item.code) + '" tabindex="0" role="button" aria-label="Abrir coordenacao de ' + escapeAttr(item.label) + '">',
           '<div class="portfolio-card-head">',
           "<h3>" + escapeHtml(item.label) + "</h3>",
           '<span class="portfolio-badge ' + escapeAttr(item.semaforo) + '">' + escapeHtml(labelSemaforo_(item.semaforo)) + "</span>",
@@ -2527,10 +2572,734 @@
           '<div class="portfolio-metric"><strong>' + escapeHtml(String(Math.max(0, Math.min(150, aderencia)))) + '%</strong><span>Aderencia no corte</span></div>',
           "</div>",
           '<div class="portfolio-next"><h4>Proximo foco</h4>' + nextTasks + "</div>",
+          '<button class="portfolio-config-btn" type="button" data-open-coord="' + escapeAttr(item.code) + '">Configurar projeto</button>',
           "</article>"
         ].join("");
       })
       .join("");
+  }
+
+  function handlePortfolioCardClick_(event) {
+    var target = event && event.target;
+    if (!target) {
+      return;
+    }
+
+    var openButton = target.closest("[data-open-coord]");
+    var card = target.closest(".portfolio-card");
+    if (!openButton && !card) {
+      return;
+    }
+
+    var contractId = "";
+    if (openButton) {
+      contractId = cleanText(openButton.getAttribute("data-open-coord"));
+    } else if (card) {
+      contractId = cleanText(card.getAttribute("data-contract-id"));
+    }
+
+    if (!contractId) {
+      return;
+    }
+
+    if (openButton) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    openCoordPanel_(contractId);
+  }
+
+  function handlePortfolioCardKeydown_(event) {
+    if (!event) {
+      return;
+    }
+    var key = event.key || "";
+    if (key !== "Enter" && key !== " ") {
+      return;
+    }
+
+    var card = event.target && event.target.closest ? event.target.closest(".portfolio-card") : null;
+    if (!card) {
+      return;
+    }
+
+    event.preventDefault();
+    var contractId = cleanText(card.getAttribute("data-contract-id"));
+    if (!contractId) {
+      return;
+    }
+
+    openCoordPanel_(contractId);
+  }
+
+  function handleCoordModalKeydown_(event) {
+    if (!coordState.open || !event) {
+      return;
+    }
+    if ((event.key || "") === "Escape") {
+      closeCoordPanel_();
+    }
+  }
+
+  function openCoordPanel_(contractId) {
+    var targetContractId = cleanText(contractId);
+    var project = projectMap[targetContractId] || {};
+    coordState.open = true;
+    coordState.contractId = targetContractId;
+    coordState.projectName = cleanText(project.label || targetContractId);
+    coordState.tasks = [];
+    coordState.events = [];
+    coordState.originalTasksByRef = {};
+    coordState.originalEventsKey = "";
+
+    if (coordModalEl) {
+      coordModalEl.classList.remove("hidden");
+      coordModalEl.setAttribute("aria-hidden", "false");
+    }
+    if (coordTitleEl) {
+      coordTitleEl.textContent = "Configuracao do projeto " + targetContractId;
+    }
+    if (coordSubtitleEl) {
+      coordSubtitleEl.textContent = "Carregando dados de coordenacao...";
+    }
+    if (coordTaskListEl) {
+      coordTaskListEl.innerHTML = '<div class="portfolio-empty">Carregando tarefas do projeto...</div>';
+    }
+    if (coordEventsListEl) {
+      coordEventsListEl.innerHTML = "";
+    }
+    clearCoordFeedback_();
+    document.body.style.overflow = "hidden";
+
+    loadCoordProjectFromServer_(targetContractId)
+      .then(function (payload) {
+        coordState.tasks = payload.tasks;
+        coordState.events = payload.events;
+        coordState.projectName = payload.projectName || coordState.projectName;
+        coordState.originalTasksByRef = {};
+        payload.tasks.forEach(function (task) {
+          coordState.originalTasksByRef[cleanText(task.refEap)] = {
+            status: cleanText(task.status),
+            responsible: cleanText(task.responsible),
+            plannedStart: cleanText(task.plannedStart),
+            plannedEnd: cleanText(task.plannedEnd),
+            percentReal: String(Number(task.percentReal || 0)),
+            blocked: task.blocked ? "Sim" : "Nao",
+            blockReason: cleanText(task.blockReason)
+          };
+        });
+        coordState.originalEventsKey = coordEventsKey_(payload.events);
+        renderCoordPanel_();
+      })
+      .catch(function (error) {
+        if (coordSubtitleEl) {
+          coordSubtitleEl.textContent = "Nao foi possivel carregar as configuracoes deste projeto.";
+        }
+        if (coordTaskListEl) {
+          coordTaskListEl.innerHTML = '<div class="portfolio-empty">Erro ao carregar tarefas. Tente novamente.</div>';
+        }
+        showCoordFeedback_("error", cleanText(error && error.message) || "Erro ao carregar dados de coordenacao.");
+      });
+  }
+
+  function closeCoordPanel_() {
+    coordState.open = false;
+    if (coordModalEl) {
+      coordModalEl.classList.add("hidden");
+      coordModalEl.setAttribute("aria-hidden", "true");
+    }
+    if (coordTaskListEl) {
+      coordTaskListEl.innerHTML = "";
+    }
+    if (coordEventsListEl) {
+      coordEventsListEl.innerHTML = "";
+    }
+    clearCoordFeedback_();
+    document.body.style.overflow = "";
+  }
+
+  function loadCoordProjectFromServer_(contractId) {
+    return new Promise(function (resolve, reject) {
+      var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+      if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+        reject(new Error("Backend nao configurado."));
+        return;
+      }
+
+      var callbackName = "vmCoordCb_" + String(Date.now());
+      var script = document.createElement("script");
+      var settled = false;
+
+      function finish() {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        try {
+          delete window[callbackName];
+        } catch (err) {
+          window[callbackName] = undefined;
+        }
+        if (script && script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      }
+
+      window[callbackName] = function (data) {
+        try {
+          if (!data || data.status !== "ok" || !data.project) {
+            reject(new Error((data && data.message) || "Falha ao carregar configuracoes."));
+            return;
+          }
+          resolve(normalizeCoordProjectPayload_(data.project));
+        } finally {
+          finish();
+        }
+      };
+
+      script.async = true;
+      script.src = buildUrlWithParams(appsScriptUrl, {
+        action: "coord_project",
+        contractId: contractId,
+        callback: callbackName,
+        _: Date.now()
+      });
+      script.onerror = function () {
+        reject(new Error("Erro de conexao ao carregar configuracoes."));
+        finish();
+      };
+      document.body.appendChild(script);
+      setTimeout(function () {
+        if (!settled) {
+          reject(new Error("Tempo de resposta excedido ao carregar configuracoes."));
+          finish();
+        }
+      }, 12000);
+    });
+  }
+
+  function normalizeCoordProjectPayload_(project) {
+    var tasks = Array.isArray(project.tasks) ? project.tasks : [];
+    var events = Array.isArray(project.events) ? project.events : [];
+
+    return {
+      contractId: cleanText(project.contractId),
+      projectName: cleanText(project.projectName),
+      summary: project.summary || {},
+      tasks: tasks.map(function (task) {
+        return {
+          refEap: cleanText(task.refEap),
+          phase: cleanText(task.phase),
+          task: cleanText(task.task),
+          status: normalizePortfolioStatus_(task.status),
+          responsible: cleanText(task.responsible),
+          plannedStart: cleanText(task.plannedStart),
+          plannedEnd: cleanText(task.plannedEnd),
+          percentReal: Number(task.percentReal || 0),
+          blocked: !!task.blocked,
+          blockReason: cleanText(task.blockReason),
+          updatedAt: cleanText(task.updatedAt),
+          lastRecordDate: cleanText(task.lastRecordDate)
+        };
+      }),
+      events: events.map(function (event) {
+        return {
+          eventDate: cleanText(event.eventDate),
+          eventType: cleanText(event.eventType),
+          title: cleanText(event.title),
+          responsible: cleanText(event.responsible),
+          status: cleanText(event.status),
+          observation: cleanText(event.observation)
+        };
+      })
+    };
+  }
+
+  function renderCoordPanel_() {
+    if (!coordTaskListEl || !coordEventsListEl) {
+      return;
+    }
+
+    if (coordTitleEl) {
+      coordTitleEl.textContent = "Configuracao do projeto " + coordState.contractId;
+    }
+    if (coordSubtitleEl) {
+      coordSubtitleEl.textContent =
+        (cleanText(coordState.projectName) || coordState.contractId) +
+        " | Edite datas, responsaveis, status, bloqueios e eventos.";
+    }
+
+    var statusOptions = ["NAO INICIADA", "EM ANDAMENTO", "BLOQUEADA", "CONCLUIDA"];
+    var professionals = Array.isArray(cfg.profissionais) ? cfg.profissionais : [];
+    var tasksHtml = coordState.tasks
+      .map(function (task, index) {
+        var ref = cleanText(task.refEap);
+        var plannedStart = formatDateInput_(task.plannedStart);
+        var plannedEnd = formatDateInput_(task.plannedEnd);
+        var status = normalizePortfolioStatus_(task.status);
+        var blocked = task.blocked ? "Sim" : "Nao";
+        var tagClass = getCoordStatusTagClass_(status);
+        var statusOptionsHtml = statusOptions
+          .map(function (option) {
+            return (
+              '<option value="' +
+              escapeAttr(option) +
+              '"' +
+              (option === status ? " selected" : "") +
+              ">" +
+              escapeHtml(option) +
+              "</option>"
+            );
+          })
+          .join("");
+        var responsibleOptionsHtml = ['<option value="">Nao definido</option>']
+          .concat(
+            professionals.map(function (name) {
+              var value = cleanText(name);
+              return (
+                '<option value="' +
+                escapeAttr(value) +
+                '"' +
+                (value === cleanText(task.responsible) ? " selected" : "") +
+                ">" +
+                escapeHtml(value) +
+                "</option>"
+              );
+            })
+          )
+          .join("");
+
+        return [
+          '<article class="coord-task-item" data-ref-eap="' + escapeAttr(ref) + '" data-status="' + escapeAttr(status) + '" data-index="' + String(index) + '">',
+          '<div class="coord-task-main">',
+          "<div>",
+          "<strong>" + escapeHtml(ref + " - " + (task.task || "Sem descricao")) + "</strong>",
+          "<p>" + escapeHtml(task.phase || "Sem fase") + "</p>",
+          "</div>",
+          '<span class="coord-task-tag ' + escapeAttr(tagClass) + '">' + escapeHtml(status) + "</span>",
+          "</div>",
+          '<div class="coord-task-grid">',
+          '<div class="coord-field"><label>Status</label><select class="coord-status">' + statusOptionsHtml + "</select></div>",
+          '<div class="coord-field"><label>Responsavel</label><select class="coord-responsible">' + responsibleOptionsHtml + "</select></div>",
+          '<div class="coord-field"><label>Inicio planejado</label><input class="coord-planned-start" type="date" value="' + escapeAttr(plannedStart) + '" /></div>',
+          '<div class="coord-field"><label>Fim planejado</label><input class="coord-planned-end" type="date" value="' + escapeAttr(plannedEnd) + '" /></div>',
+          '<div class="coord-field"><label>% Real</label><input class="coord-percent-real" type="number" min="0" max="100" step="1" value="' + escapeAttr(String(Math.max(0, Math.min(100, Number(task.percentReal || 0))))) + '" /></div>',
+          '<div class="coord-field"><label>Bloqueio</label><select class="coord-blocked"><option value="Nao"' + (blocked === "Nao" ? " selected" : "") + '>Nao</option><option value="Sim"' + (blocked === "Sim" ? " selected" : "") + ">Sim</option></select></div>",
+          '<div class="coord-field long"><label>Desc. bloqueio</label><input class="coord-block-reason" type="text" maxlength="180" value="' + escapeAttr(cleanText(task.blockReason)) + '" /></div>',
+          "</div>",
+          "</article>"
+        ].join("");
+      })
+      .join("");
+
+    coordTaskListEl.innerHTML = tasksHtml || '<div class="portfolio-empty">Nenhuma tarefa encontrada para este projeto.</div>';
+    coordTaskListEl.removeEventListener("change", handleCoordTaskFieldChange_);
+    coordTaskListEl.addEventListener("change", handleCoordTaskFieldChange_);
+    coordTaskListEl.addEventListener("input", handleCoordTaskFieldChange_);
+    renderCoordEvents_(coordState.events);
+    applyCoordFilter_();
+  }
+
+  function renderCoordEvents_(events) {
+    if (!coordEventsListEl) {
+      return;
+    }
+
+    var list = Array.isArray(events) ? events : [];
+    if (!list.length) {
+      coordEventsListEl.innerHTML = '<div class="portfolio-empty">Sem eventos programados para este projeto.</div>';
+      return;
+    }
+
+    coordEventsListEl.innerHTML = list
+      .map(function (event, index) {
+        return buildCoordEventItemHtml_(event, index);
+      })
+      .join("");
+  }
+
+  function buildCoordEventItemHtml_(eventData, index) {
+    var professionals = Array.isArray(cfg.profissionais) ? cfg.profissionais : [];
+    var event = eventData || {};
+    var responsibleOptions = ['<option value="">Nao definido</option>']
+      .concat(
+        professionals.map(function (name) {
+          var value = cleanText(name);
+          return (
+            '<option value="' +
+            escapeAttr(value) +
+            '"' +
+            (value === cleanText(event.responsible) ? " selected" : "") +
+            ">" +
+            escapeHtml(value) +
+            "</option>"
+          );
+        })
+      )
+      .join("");
+
+    return [
+      '<article class="coord-event-item" data-event-index="' + String(index) + '">',
+      '<div class="coord-event-grid">',
+      '<div class="coord-field"><label>Data</label><input class="coord-event-date" type="date" value="' + escapeAttr(formatDateInput_(event.eventDate)) + '" /></div>',
+      '<div class="coord-field"><label>Tipo</label><input class="coord-event-type" type="text" maxlength="60" value="' + escapeAttr(cleanText(event.eventType)) + '" placeholder="Aprovacao, reuniao..." /></div>',
+      '<div class="coord-field"><label>Titulo</label><input class="coord-event-title" type="text" maxlength="120" value="' + escapeAttr(cleanText(event.title)) + '" placeholder="Ex: Aprovacao layout fase 1" /></div>',
+      '<div class="coord-field"><label>Responsavel</label><select class="coord-event-responsible">' + responsibleOptions + "</select></div>",
+      '<div class="coord-field"><label>Status</label><select class="coord-event-status"><option value="Planejado"' + (cleanText(event.status) === "Planejado" ? " selected" : "") + '>Planejado</option><option value="Concluido"' + (cleanText(event.status) === "Concluido" ? " selected" : "") + '>Concluido</option><option value="Cancelado"' + (cleanText(event.status) === "Cancelado" ? " selected" : "") + ">Cancelado</option></select></div>",
+      "</div>",
+      '<div class="coord-field coord-event-obs"><label>Observacao</label><textarea class="coord-event-observation" maxlength="220" placeholder="Detalhe rapido do evento">' + escapeHtml(cleanText(event.observation)) + "</textarea></div>",
+      '<button class="coord-remove-event" type="button" data-remove-event="' + String(index) + '">Remover evento</button>',
+      "</article>"
+    ].join("");
+  }
+
+  function handleCoordTaskFieldChange_(event) {
+    var target = event && event.target;
+    if (!target) {
+      return;
+    }
+
+    var item = target.closest(".coord-task-item");
+    if (!item) {
+      return;
+    }
+
+    var status = cleanText((item.querySelector(".coord-status") || {}).value) || "NAO INICIADA";
+    item.setAttribute("data-status", status);
+    var tagEl = item.querySelector(".coord-task-tag");
+    if (tagEl) {
+      tagEl.className = "coord-task-tag " + getCoordStatusTagClass_(status);
+      tagEl.textContent = status;
+    }
+    applyCoordFilter_();
+  }
+
+  function applyCoordFilter_() {
+    if (!coordTaskListEl) {
+      return;
+    }
+
+    var mode = cleanText((coordFilterEl || {}).value) || "all";
+    var today = getCutoffDate_();
+    var items = coordTaskListEl.querySelectorAll(".coord-task-item");
+    var i;
+
+    for (i = 0; i < items.length; i += 1) {
+      var item = items[i];
+      var status = cleanText(item.getAttribute("data-status"));
+      var blocked = cleanText((item.querySelector(".coord-blocked") || {}).value) === "Sim";
+      var plannedEnd = parseDateFlexible_((item.querySelector(".coord-planned-end") || {}).value);
+      var show = true;
+
+      if (mode === "open") {
+        show = status !== "CONCLUIDA";
+      } else if (mode === "late") {
+        show = status !== "CONCLUIDA" && plannedEnd && plannedEnd.getTime() < today.getTime();
+      } else if (mode === "blocked") {
+        show = blocked || status === "BLOQUEADA";
+      }
+
+      if (show) {
+        item.classList.remove("hidden");
+      } else {
+        item.classList.add("hidden");
+      }
+    }
+  }
+
+  function addCoordEventRow_(eventData) {
+    var current = collectCoordEventsFromForm_();
+    current.push(eventData || {
+      eventDate: "",
+      eventType: "",
+      title: "",
+      responsible: cleanText((professionalEl || {}).value),
+      status: "Planejado",
+      observation: ""
+    });
+    renderCoordEvents_(current);
+  }
+
+  function handleCoordEventRemove_(event) {
+    var target = event && event.target;
+    if (!target) {
+      return;
+    }
+    var removeIndex = cleanText(target.getAttribute("data-remove-event"));
+    if (!removeIndex && removeIndex !== "0") {
+      return;
+    }
+
+    var index = Number(removeIndex);
+    if (isNaN(index)) {
+      return;
+    }
+
+    var current = collectCoordEventsFromForm_();
+    if (index < 0 || index >= current.length) {
+      return;
+    }
+    current.splice(index, 1);
+    renderCoordEvents_(current);
+  }
+
+  function handleCoordSave_() {
+    var contractId = cleanText(coordState.contractId);
+    if (!contractId) {
+      showCoordFeedback_("error", "Projeto nao identificado para salvar.");
+      return;
+    }
+
+    var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+    if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      showCoordFeedback_("error", "Backend nao configurado.");
+      return;
+    }
+
+    var tasksNow = collectCoordTasksFromForm_();
+    var taskUpdates = buildCoordTaskUpdates_(tasksNow);
+    var eventsNow = collectCoordEventsFromForm_();
+    var eventsKey = coordEventsKey_(eventsNow);
+    var hasEventsChanged = eventsKey !== coordState.originalEventsKey;
+
+    if (!taskUpdates.length && !hasEventsChanged) {
+      showCoordFeedback_("warn", "Nenhuma alteracao detectada para salvar.");
+      return;
+    }
+
+    var editor = cleanText((professionalEl || {}).value) || "COORDENACAO";
+    var payload = {
+      action: "coord_update_project",
+      contractId: contractId,
+      projectName: cleanText(coordState.projectName),
+      editor: editor,
+      updates: taskUpdates,
+      events: eventsNow
+    };
+
+    coordSaveEl.disabled = true;
+    coordSaveEl.textContent = "Salvando...";
+    clearCoordFeedback_();
+
+    sendPayload(appsScriptUrl, payload)
+      .then(function (result) {
+        if (result.mode === "cors" && result.data && result.data.status === "ok") {
+          loadRefOptionsFromServer();
+          loadPpmSnapshotFromServer();
+          renderPortfolioOverview();
+          return loadCoordProjectFromServer_(contractId).then(function (fresh) {
+            coordState.tasks = fresh.tasks;
+            coordState.events = fresh.events;
+            coordState.projectName = fresh.projectName || coordState.projectName;
+            coordState.originalTasksByRef = {};
+            fresh.tasks.forEach(function (task) {
+              coordState.originalTasksByRef[cleanText(task.refEap)] = {
+                status: cleanText(task.status),
+                responsible: cleanText(task.responsible),
+                plannedStart: cleanText(task.plannedStart),
+                plannedEnd: cleanText(task.plannedEnd),
+                percentReal: String(Number(task.percentReal || 0)),
+                blocked: task.blocked ? "Sim" : "Nao",
+                blockReason: cleanText(task.blockReason)
+              };
+            });
+            coordState.originalEventsKey = coordEventsKey_(fresh.events);
+            renderCoordPanel_();
+            showCoordFeedback_(
+              "ok",
+              "Configuracoes salvas com sucesso. Tarefas atualizadas: " +
+                String(Number(result.data.updatedTasks || 0)) +
+                ". Eventos salvos: " +
+                String(Number(result.data.savedEvents || 0)) +
+                "."
+            );
+          });
+        }
+
+        if (result.mode === "cors" && result.data && result.data.status === "error") {
+          showCoordFeedback_("error", result.data.message || "Falha ao salvar configuracoes.");
+          return;
+        }
+
+        showCoordFeedback_(
+          "warn",
+          "Salvo em modo de compatibilidade. Confirme na aba CONTROLE_EAP_ATUAL."
+        );
+      })
+      .catch(function (error) {
+        showCoordFeedback_("error", cleanText(error && error.message) || "Nao foi possivel salvar.");
+      })
+      .then(function () {
+        coordSaveEl.disabled = false;
+        coordSaveEl.textContent = "Salvar configuracoes do projeto";
+      });
+  }
+
+  function collectCoordTasksFromForm_() {
+    if (!coordTaskListEl) {
+      return [];
+    }
+
+    var rows = coordTaskListEl.querySelectorAll(".coord-task-item");
+    var items = [];
+    var i;
+
+    for (i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      items.push({
+        refEap: cleanText(row.getAttribute("data-ref-eap")),
+        status: cleanText((row.querySelector(".coord-status") || {}).value),
+        responsible: cleanText((row.querySelector(".coord-responsible") || {}).value),
+        plannedStart: cleanText((row.querySelector(".coord-planned-start") || {}).value),
+        plannedEnd: cleanText((row.querySelector(".coord-planned-end") || {}).value),
+        percentReal: cleanText((row.querySelector(".coord-percent-real") || {}).value),
+        blocked: cleanText((row.querySelector(".coord-blocked") || {}).value),
+        blockReason: cleanText((row.querySelector(".coord-block-reason") || {}).value)
+      });
+    }
+
+    return items;
+  }
+
+  function buildCoordTaskUpdates_(tasksNow) {
+    var updates = [];
+    var i;
+    for (i = 0; i < tasksNow.length; i += 1) {
+      var item = tasksNow[i];
+      var ref = cleanText(item.refEap);
+      if (!ref) {
+        continue;
+      }
+
+      var original = coordState.originalTasksByRef[ref] || {
+        status: "",
+        responsible: "",
+        plannedStart: "",
+        plannedEnd: "",
+        percentReal: "",
+        blocked: "Nao",
+        blockReason: ""
+      };
+
+      var current = {
+        status: normalizePortfolioStatus_(item.status),
+        responsible: cleanText(item.responsible),
+        plannedStart: cleanText(item.plannedStart),
+        plannedEnd: cleanText(item.plannedEnd),
+        percentReal: String(Math.max(0, Math.min(100, Number(item.percentReal || 0)))),
+        blocked: cleanText(item.blocked) === "Sim" ? "Sim" : "Nao",
+        blockReason: cleanText(item.blockReason)
+      };
+
+      if (
+        current.status !== cleanText(original.status) ||
+        current.responsible !== cleanText(original.responsible) ||
+        current.plannedStart !== cleanText(original.plannedStart) ||
+        current.plannedEnd !== cleanText(original.plannedEnd) ||
+        current.percentReal !== cleanText(original.percentReal) ||
+        current.blocked !== cleanText(original.blocked) ||
+        current.blockReason !== cleanText(original.blockReason)
+      ) {
+        updates.push({
+          refEap: ref,
+          status: current.status,
+          responsible: current.responsible,
+          plannedStart: current.plannedStart,
+          plannedEnd: current.plannedEnd,
+          percentReal: Number(current.percentReal || 0),
+          blocked: current.blocked,
+          blockReason: current.blockReason
+        });
+      }
+    }
+    return updates;
+  }
+
+  function collectCoordEventsFromForm_() {
+    if (!coordEventsListEl) {
+      return [];
+    }
+
+    var rows = coordEventsListEl.querySelectorAll(".coord-event-item");
+    var events = [];
+    var i;
+    for (i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      var event = {
+        eventDate: cleanText((row.querySelector(".coord-event-date") || {}).value),
+        eventType: cleanText((row.querySelector(".coord-event-type") || {}).value),
+        title: cleanText((row.querySelector(".coord-event-title") || {}).value),
+        responsible: cleanText((row.querySelector(".coord-event-responsible") || {}).value),
+        status: cleanText((row.querySelector(".coord-event-status") || {}).value) || "Planejado",
+        observation: cleanText((row.querySelector(".coord-event-observation") || {}).value)
+      };
+
+      if (!event.eventDate && !event.eventType && !event.title && !event.observation) {
+        continue;
+      }
+      events.push(event);
+    }
+    return events;
+  }
+
+  function coordEventsKey_(events) {
+    var normalized = (events || []).map(function (event) {
+      return {
+        eventDate: cleanText(event && event.eventDate),
+        eventType: cleanText(event && event.eventType),
+        title: cleanText(event && event.title),
+        responsible: cleanText(event && event.responsible),
+        status: cleanText(event && event.status),
+        observation: cleanText(event && event.observation)
+      };
+    });
+    return JSON.stringify(normalized);
+  }
+
+  function showCoordFeedback_(type, message) {
+    if (!coordFeedbackEl) {
+      return;
+    }
+    coordFeedbackEl.classList.remove("hidden", "ok", "warn", "error");
+    coordFeedbackEl.classList.add(type);
+    coordFeedbackEl.textContent = message;
+  }
+
+  function clearCoordFeedback_() {
+    if (!coordFeedbackEl) {
+      return;
+    }
+    coordFeedbackEl.classList.add("hidden");
+    coordFeedbackEl.classList.remove("ok", "warn", "error");
+    coordFeedbackEl.textContent = "";
+  }
+
+  function getCoordStatusTagClass_(status) {
+    if (status === "EM ANDAMENTO") {
+      return "doing";
+    }
+    if (status === "BLOQUEADA") {
+      return "blocked";
+    }
+    if (status === "CONCLUIDA") {
+      return "done";
+    }
+    return "todo";
+  }
+
+  function formatDateInput_(value) {
+    var parsed = parseDateFlexible_(value);
+    if (!parsed) {
+      return "";
+    }
+    return (
+      String(parsed.getFullYear()) +
+      "-" +
+      String(parsed.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(parsed.getDate()).padStart(2, "0")
+    );
   }
 
   function renderPortfolioBlocks_(items) {
