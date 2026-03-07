@@ -189,31 +189,8 @@
     "10.2.1": { du: 3, deps: ["10.1.1", "9.1.2"] }
   };
 
-  var DEFAULT_SIGNATURE_DATE = "2025-12-12";
-  var PROJECT_SIGNATURE_DATE = Object.assign(
-    {
-      "CT-117": "2025-12-12",
-      "CT-119": "2025-12-16",
-      "CT-120": "2025-12-17",
-      "CT-121": "2025-12-18",
-      "CT-122": "2026-02-12",
-      "CT-123": "2025-01-08",
-      "CT-124": "2025-01-27",
-      "CT-125": "2025-02-12",
-      "CT-126": "2025-02-14",
-      "CT-127": "2025-03-12",
-      "CT-128": "2025-04-04",
-      "CT-129": "2025-04-15",
-      "CT-130": "2025-05-15",
-      "CT-131": "2025-05-15",
-      "CT-132": "2025-05-23",
-      "CT-133": "2025-09-02",
-      "CT-134": "2025-06-26",
-      "CT-135": "2025-06-04",
-      "CT-136": "2025-11-26"
-    },
-    cfg.datasAssinatura || {}
-  );
+  var DEFAULT_SIGNATURE_DATE = "";
+  var PROJECT_SIGNATURE_DATE = Object.assign({}, cfg.datasAssinatura || {});
 
   init();
 
@@ -797,9 +774,14 @@
         return;
       }
       var label = formatProjectLabel_(code, cleanText(item && item.label));
-      var project = { code: code, label: label };
+      var signatureDate = cleanText(item && item.signatureDate);
+      var project = { code: code, label: label, signatureDate: signatureDate };
       normalized.push(project);
       map[code] = project;
+
+      if (signatureDate) {
+        PROJECT_SIGNATURE_DATE[code] = signatureDate;
+      }
     });
 
     projectList = normalized;
@@ -971,28 +953,66 @@
     var mergedMap = {};
     var merged = [];
 
-    function addItem(item, isServer) {
+    function getSignatureDateFromProject_(item) {
+      return cleanText(item && (item.signatureDate || item.dataAssinatura || item.assinatura));
+    }
+
+    function addOrMerge(item, preferIncoming) {
       var code = cleanText(item && item.code);
-      if (!code || mergedMap[code]) {
+      if (!code) {
         return;
       }
-      var label = formatProjectLabel_(code, cleanText(item && item.label));
-      mergedMap[code] = true;
-      merged.push({
-        code: code,
-        label: isServer && label ? label : label
-      });
+
+      var incomingLabel = cleanText(item && item.label);
+      var incomingSignatureDate = getSignatureDateFromProject_(item);
+      var existing = mergedMap[code];
+
+      if (!existing) {
+        existing = {
+          code: code,
+          label: formatProjectLabel_(code, incomingLabel),
+          signatureDate: incomingSignatureDate
+        };
+        mergedMap[code] = existing;
+        merged.push(existing);
+        return;
+      }
+
+      if (preferIncoming && incomingLabel) {
+        existing.label = formatProjectLabel_(code, incomingLabel);
+      }
+      if (incomingSignatureDate) {
+        existing.signatureDate = incomingSignatureDate;
+      }
     }
 
     (localProjects || []).forEach(function (item) {
-      addItem(item, false);
+      addOrMerge(item, false);
     });
 
     (serverProjects || []).forEach(function (item) {
-      addItem(item, true);
+      addOrMerge(item, true);
     });
 
     return merged;
+  }
+
+  function mergeSignatureDates_(signatureDates) {
+    var code;
+    for (code in signatureDates) {
+      if (!Object.prototype.hasOwnProperty.call(signatureDates, code)) {
+        continue;
+      }
+      var normalizedCode = cleanText(code);
+      var normalizedDate = cleanText(signatureDates[code]);
+      if (!normalizedCode || !normalizedDate) {
+        continue;
+      }
+      PROJECT_SIGNATURE_DATE[normalizedCode] = normalizedDate;
+      if (projectMap[normalizedCode]) {
+        projectMap[normalizedCode].signatureDate = normalizedDate;
+      }
+    }
   }
 
   function buildStatusOptionsHtml(key) {
@@ -1398,6 +1418,10 @@
             ? previousDraft.selectedCodes
             : [];
 
+          if (data.signatureDates && typeof data.signatureDates === "object") {
+            mergeSignatureDates_(data.signatureDates);
+          }
+
           if (Array.isArray(data.projects) && data.projects.length) {
             rebuildProjectCache_(mergeProjects_(localProjectsFromConfig, data.projects));
             populateProjects();
@@ -1461,6 +1485,9 @@
       try {
         if (data && data.status === "ok") {
           ppmSnapshotMap = normalizePpmSnapshot_(data);
+          if (data.signatureDates && typeof data.signatureDates === "object") {
+            mergeSignatureDates_(data.signatureDates);
+          }
           renderPortfolioOverview();
           renderDailyFocus_();
         }
@@ -1494,6 +1521,7 @@
       map[contractId] = {
         contractId: contractId,
         projectName: cleanText(project.projectName),
+        signatureDate: cleanText(project && project.signatureDate),
         totals: project.totals || {},
         tasks: tasks.map(function (task) {
           return {
@@ -2126,10 +2154,14 @@
       var metrics = buildPortfolioMetricsFromSchedule_(schedule, cutoffDate);
       var nextTasks = buildPortfolioNextTasks_(schedule);
       var blockedItems = buildPortfolioBlockedItems_(schedule);
+      var signatureDate = getProjectSignatureDate_(code, snapshotProject, project);
+      var daysSinceSignature = calculateDaysSince_(signatureDate, cutoffDate);
 
       data.push({
         code: code,
         label: cleanText(project.label) || code,
+        signatureDate: signatureDate,
+        daysSinceSignature: daysSinceSignature,
         total: metrics.total,
         concluida: metrics.concluida,
         emAndamento: metrics.emAndamento,
@@ -2168,10 +2200,10 @@
   function buildProjectSchedule_(projectCode, optionList, snapshotProject) {
     var snapshotTasks = snapshotProject && Array.isArray(snapshotProject.tasks) ? snapshotProject.tasks : [];
     if (snapshotTasks.length) {
-      return buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks);
+      return buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks, snapshotProject);
     }
 
-    var signatureDate = parseIsoDate_(PROJECT_SIGNATURE_DATE[projectCode] || DEFAULT_SIGNATURE_DATE);
+    var signatureDate = getProjectSignatureDate_(projectCode, snapshotProject);
     var statusByRef = buildStatusMapFromOptions_(optionList);
     var scheduleByWbs = {};
     var tasks = [];
@@ -2211,8 +2243,8 @@
     return map;
   }
 
-  function buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks) {
-    var signatureDate = parseIsoDate_(PROJECT_SIGNATURE_DATE[projectCode] || DEFAULT_SIGNATURE_DATE);
+  function buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks, snapshotProject) {
+    var signatureDate = getProjectSignatureDate_(projectCode, snapshotProject);
     var scheduleByWbs = {};
     var taskByRef = {};
     var tasks = [];
@@ -2287,6 +2319,43 @@
       return String(a.refEap).localeCompare(String(b.refEap));
     });
     return tasks;
+  }
+
+  function getProjectSignatureDate_(projectCode, snapshotProject, project) {
+    var fromProject = parseIsoDate_(cleanText(project && project.signatureDate));
+    if (fromProject) {
+      return fromProject;
+    }
+
+    var fromSnapshot = parseIsoDate_(cleanText(snapshotProject && snapshotProject.signatureDate));
+    if (fromSnapshot) {
+      return fromSnapshot;
+    }
+
+    var fromGlobalMap = parseIsoDate_(cleanText(PROJECT_SIGNATURE_DATE[projectCode]));
+    if (fromGlobalMap) {
+      return fromGlobalMap;
+    }
+
+    var fallback = parseIsoDate_(DEFAULT_SIGNATURE_DATE);
+    if (fallback) {
+      return fallback;
+    }
+
+    return getCutoffDate_();
+  }
+
+  function calculateDaysSince_(startDate, endDate) {
+    if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
+      return null;
+    }
+    var start = cloneDate_(startDate);
+    var end = cloneDate_(endDate);
+    var diffMs = end.getTime() - start.getTime();
+    if (diffMs < 0) {
+      return 0;
+    }
+    return Math.floor(diffMs / (24 * 60 * 60 * 1000));
   }
 
   function buildRefFromWbsForFront_(projectCode, wbs) {
@@ -2552,6 +2621,7 @@
               .join("") +
             "</ul>"
           : "<p class='portfolio-empty'>Sem proximo foco identificado.</p>";
+        var signatureMeta = buildSignatureMetaText_(item);
 
         return [
           '<article class="portfolio-card" data-contract-id="' + escapeAttr(item.code) + '" tabindex="0" role="button" aria-label="Abrir coordenacao de ' + escapeAttr(item.label) + '">',
@@ -2559,6 +2629,7 @@
           "<h3>" + escapeHtml(item.label) + "</h3>",
           '<span class="portfolio-badge ' + escapeAttr(item.semaforo) + '">' + escapeHtml(labelSemaforo_(item.semaforo)) + "</span>",
           "</div>",
+          '<p class="portfolio-contract-meta">' + escapeHtml(signatureMeta) + "</p>",
           '<div class="portfolio-progress">',
           '<div class="portfolio-progress-meta"><span>Concluido</span><strong>' + escapeHtml(String(item.percentual)) + "%</strong></div>",
           '<div class="portfolio-progress-bar"><div class="portfolio-progress-fill" style="width:' + escapeAttr(String(Math.max(0, Math.min(100, item.percentual)))) + '%;"></div></div>',
@@ -3631,6 +3702,20 @@
     });
 
     return lines.join("\n");
+  }
+
+  function buildSignatureMetaText_(item) {
+    var signatureDate = item && item.signatureDate instanceof Date ? item.signatureDate : null;
+    if (!signatureDate) {
+      return "Assinatura contratual: nao informada";
+    }
+
+    var days = Number(item && item.daysSinceSignature);
+    if (isNaN(days) || days < 0) {
+      days = 0;
+    }
+
+    return "Assinatura contratual: " + formatDateBr_(signatureDate) + " | " + days + " dias de contrato";
   }
 
   function labelSemaforo_(value) {

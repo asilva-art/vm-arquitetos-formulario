@@ -888,7 +888,8 @@ function getProjectsForConfig_() {
     }
     projects.push({
       code: map[code].contractId,
-      label: map[code].projectName
+      label: map[code].projectName,
+      signatureDate: clean_(map[code].signatureDate)
     });
   }
 
@@ -916,7 +917,8 @@ function getProjectMap_() {
     map[code] = {
       projectName: clean_(PROJECT_MAP[code].projectName),
       contractId: clean_(PROJECT_MAP[code].contractId),
-      sectionName: clean_(PROJECT_MAP[code].sectionName)
+      sectionName: clean_(PROJECT_MAP[code].sectionName),
+      signatureDate: ""
     };
   }
 
@@ -925,7 +927,8 @@ function getProjectMap_() {
     map[item.contractId] = {
       projectName: item.projectName,
       contractId: item.contractId,
-      sectionName: "Secao " + item.contractId
+      sectionName: "Secao " + item.contractId,
+      signatureDate: clean_(item.signatureDate)
     };
   }
 
@@ -969,6 +972,15 @@ function readProjectsFromContractsSheet_() {
     "nome"
   ]);
   var statusIndex = findHeaderIndex_(headers, ["status", "situacao", "situação", "ativo"]);
+  var signatureDateIndex = findHeaderIndex_(headers, [
+    "data assinatura",
+    "data de assinatura",
+    "assinatura",
+    "dt assinatura",
+    "data contrato",
+    "data do contrato",
+    "assinado em"
+  ]);
   var map = {};
   var i;
 
@@ -1003,7 +1015,8 @@ function readProjectsFromContractsSheet_() {
     map[contractId] = {
       projectName: projectName,
       contractId: contractId,
-      sectionName: "Secao " + contractId
+      sectionName: "Secao " + contractId,
+      signatureDate: signatureDateIndex >= 0 ? toIsoDateOrBlank_(row[signatureDateIndex]) : ""
     };
   }
 
@@ -1843,21 +1856,40 @@ function getTz_() {
 
 function buildConfigPayload_() {
   var projects = getProjectsForConfig_();
+  var signatureDates = {};
+  var i;
+
+  for (i = 0; i < projects.length; i += 1) {
+    if (!projects[i].code) {
+      continue;
+    }
+    signatureDates[projects[i].code] = clean_(projects[i].signatureDate);
+  }
 
   return {
     status: "ok",
     projects: projects,
     statuses: STATUS_CONTROL,
-    refOptions: buildRefOptionsByProject_()
+    refOptions: buildRefOptionsByProject_(),
+    signatureDates: signatureDates
   };
 }
 
 function buildPpmSnapshotPayload_() {
   var sheet = getOrCreateControlSheet_();
   var rows = readControlRows_(sheet);
+  var projectMap = getProjectMap_();
+  var signatureDates = {};
   var byContract = {};
   var order = [];
   var i;
+
+  for (var code in projectMap) {
+    if (!Object.prototype.hasOwnProperty.call(projectMap, code)) {
+      continue;
+    }
+    signatureDates[code] = clean_(projectMap[code].signatureDate);
+  }
 
   for (i = 0; i < rows.length; i += 1) {
     var row = rows[i];
@@ -1869,9 +1901,11 @@ function buildPpmSnapshotPayload_() {
     }
 
     if (!byContract[contractId]) {
+      var projectInfo = projectMap[contractId] || {};
       byContract[contractId] = {
         contractId: contractId,
         projectName: clean_(row[1]) || contractId,
+        signatureDate: clean_(projectInfo.signatureDate),
         tasks: [],
         totals: {
           total: 0,
@@ -1932,7 +1966,8 @@ function buildPpmSnapshotPayload_() {
   return {
     status: "ok",
     generatedAt: Utilities.formatDate(new Date(), getTz_(), "yyyy-MM-dd'T'HH:mm:ss"),
-    projects: projects
+    projects: projects,
+    signatureDates: signatureDates
   };
 }
 
