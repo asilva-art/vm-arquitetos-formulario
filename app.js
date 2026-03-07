@@ -2,6 +2,7 @@
   "use strict";
 
   var cfg = window.VM_FORM_CONFIG || {};
+  var localProjectsFromConfig = Array.isArray(cfg.projetos) ? cfg.projetos : [];
   var formEl = document.getElementById("daily-form");
   var professionalEl = document.getElementById("professional");
   var dateEl = document.getElementById("work-date");
@@ -16,7 +17,58 @@
   var projectMap = {};
   var projectList = [];
   var refOptionsByProject = normalizeRefOptions(cfg.refOptions || {});
-  rebuildProjectCache_(cfg.projetos || []);
+  rebuildProjectCache_(localProjectsFromConfig);
+
+  var LOCAL_EAP_TEMPLATE = [
+    { wbs: "1.1.1", phase: "Estudos Preliminares", task: "Elaboracao do Briefing Documentado" },
+    { wbs: "1.1.2", phase: "Estudos Preliminares", task: "Geracao da Analise do Terreno" },
+    { wbs: "1.1.3", phase: "Estudos Preliminares", task: "Levantamento da Analise Legal" },
+    { wbs: "2.1.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Estudo de Implantacao" },
+    { wbs: "2.1.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Planta de Layout" },
+    { wbs: "2.2.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Execucao de Revisoes (ate 2 rodadas)" },
+    { wbs: "2.2.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Aprovacao do Layout" },
+    { wbs: "3.1.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Modelagem de Imagens 3D Externas" },
+    { wbs: "3.1.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Pre-selecao de Materiais Externos" },
+    { wbs: "3.1.3", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Estudo de Alternativa de Volumetria (se solicitada)" },
+    { wbs: "3.2.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Execucao de Revisoes (ate 2 rodadas)" },
+    { wbs: "3.2.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Aprovacao da Volumetria e Materiais Externos" },
+    { wbs: "4.1.1", phase: "Projeto Legal", task: "Elaboracao do Projeto para Aprovacao na Prefeitura" },
+    { wbs: "4.2.1", phase: "Projeto Legal", task: "Acompanhamento do Protocolo na Prefeitura" },
+    { wbs: "4.2.2", phase: "Projeto Legal", task: "Projeto Legal Aprovado" },
+    { wbs: "5.1.1", phase: "Anteprojeto - Etapa III (Interiores)", task: "Modelagem de Imagens 3D Internas" },
+    { wbs: "5.1.2", phase: "Anteprojeto - Etapa III (Interiores)", task: "Pre-selecao de Materiais Internos" },
+    { wbs: "5.1.3", phase: "Anteprojeto - Etapa III (Interiores)", task: "Estudo de Alternativa por Ambiente (se solicitada)" },
+    { wbs: "5.2.1", phase: "Anteprojeto - Etapa III (Interiores)", task: "Execucao de Revisoes (ate 2 rodadas)" },
+    { wbs: "5.2.2", phase: "Anteprojeto - Etapa III (Interiores)", task: "Aprovacao dos Interiores" },
+    { wbs: "6.1.1", phase: "Projeto Pre-Executivo", task: "Planta Layout Cotada" },
+    { wbs: "6.1.2", phase: "Projeto Pre-Executivo", task: "Detalhamento de Pedras" },
+    { wbs: "6.1.3", phase: "Projeto Pre-Executivo", task: "Quantitativo de Revestimentos" },
+    { wbs: "6.1.4", phase: "Projeto Pre-Executivo", task: "Lista de Loucas e Metais" },
+    { wbs: "7.1.1", phase: "Definicao de Materiais e Revisao 3D", task: "Acompanhamento em Lojas (ate 7 visitas)" },
+    { wbs: "7.2.1", phase: "Definicao de Materiais e Revisao 3D", task: "Execucao da Revisao Final 3D" },
+    { wbs: "7.2.2", phase: "Definicao de Materiais e Revisao 3D", task: "Aprovacao Final 3D" },
+    { wbs: "8.1.1", phase: "Projeto Executivo", task: "Planta de Situacao" },
+    { wbs: "8.1.2", phase: "Projeto Executivo", task: "Planta de Implantacao" },
+    { wbs: "8.1.3", phase: "Projeto Executivo", task: "Planta de Cobertura" },
+    { wbs: "8.1.4", phase: "Projeto Executivo", task: "Cortes" },
+    { wbs: "8.1.5", phase: "Projeto Executivo", task: "Fachadas" },
+    { wbs: "8.2.1", phase: "Projeto Executivo", task: "Pontos Eletricos" },
+    { wbs: "8.2.2", phase: "Projeto Executivo", task: "Pontos Hidraulicos" },
+    { wbs: "8.2.3", phase: "Projeto Executivo", task: "Planta de Forro" },
+    { wbs: "8.2.4", phase: "Projeto Executivo", task: "Planta de Piso" },
+    { wbs: "8.2.5", phase: "Projeto Executivo", task: "Projeto Luminotecnico" },
+    { wbs: "8.3.1", phase: "Projeto Executivo", task: "Detalhamento de Escadas e Rampas" },
+    { wbs: "8.3.2", phase: "Projeto Executivo", task: "Detalhamento de Esquadrias" },
+    { wbs: "8.3.3", phase: "Projeto Executivo", task: "Detalhes Construtivos" },
+    { wbs: "8.3.4", phase: "Projeto Executivo", task: "Detalhamento de Gradil" },
+    { wbs: "8.3.5", phase: "Projeto Executivo", task: "Detalhamento de Areas Molhadas" },
+    { wbs: "8.3.6", phase: "Projeto Executivo", task: "Detalhamento de Guarda-corpo" },
+    { wbs: "9.1.1", phase: "Detalhamentos Complementares", task: "Detalhamento de Vidros e Espelhos" },
+    { wbs: "9.1.2", phase: "Detalhamentos Complementares", task: "Design e Detalhamento de Moveis" },
+    { wbs: "9.1.3", phase: "Detalhamentos Complementares", task: "Detalhamentos Complementares Especificos" },
+    { wbs: "10.1.1", phase: "Acompanhamento de Obra e Producao", task: "Realizacao de Visitas Tecnicas em Obra (2 visitas)" },
+    { wbs: "10.2.1", phase: "Acompanhamento de Obra e Producao", task: "Realizacao de Acompanhamento de Producao (1 visita)" }
+  ];
 
   init();
 
@@ -184,7 +236,66 @@
   function getRefOptionsForProject(projectCode) {
     var project = projectMap[projectCode];
     var key = project ? project.code : projectCode;
-    return refOptionsByProject[key] || [];
+    var serverOptions = refOptionsByProject[key] || [];
+    if (serverOptions.length) {
+      return serverOptions;
+    }
+
+    return buildDefaultRefOptionsForProject_(key);
+  }
+
+  function buildDefaultRefOptionsForProject_(projectCode) {
+    if (projectCode === "ADMIN-INTERNO") {
+      return [
+        {
+          value: "ADMININTERNO-WBS-INT_1",
+          label: "ADMININTERNO-WBS-INT_1 | Administrativo/Interno | Atividades administrativas internas",
+          status: "NAO INICIADA"
+        }
+      ];
+    }
+
+    if (!/^CT-\d+$/i.test(projectCode)) {
+      return [];
+    }
+
+    var compact = String(projectCode).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    return LOCAL_EAP_TEMPLATE.map(function (item) {
+      var value = compact + "-WBS-" + String(item.wbs).replace(/[^A-Za-z0-9]+/g, "_");
+      return {
+        value: value,
+        label: value + " | " + item.phase + " | " + item.task,
+        status: "NAO INICIADA"
+      };
+    });
+  }
+
+  function mergeProjects_(localProjects, serverProjects) {
+    var mergedMap = {};
+    var merged = [];
+
+    function addItem(item, isServer) {
+      var code = cleanText(item && item.code);
+      if (!code || mergedMap[code]) {
+        return;
+      }
+      var label = formatProjectLabel_(code, cleanText(item && item.label));
+      mergedMap[code] = true;
+      merged.push({
+        code: code,
+        label: isServer && label ? label : label
+      });
+    }
+
+    (localProjects || []).forEach(function (item) {
+      addItem(item, false);
+    });
+
+    (serverProjects || []).forEach(function (item) {
+      addItem(item, true);
+    });
+
+    return merged;
   }
 
   function buildStatusOptionsHtml(key) {
@@ -440,7 +551,7 @@
           var previouslySelected = getSelectedProjectCodes();
 
           if (Array.isArray(data.projects) && data.projects.length) {
-            rebuildProjectCache_(data.projects);
+            rebuildProjectCache_(mergeProjects_(localProjectsFromConfig, data.projects));
             populateProjects();
             selectProjectCodes_(previouslySelected);
           }
