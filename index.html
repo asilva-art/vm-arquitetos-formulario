@@ -120,26 +120,37 @@
               Visao rapida de andamento, bloqueios e proximo foco. Data de corte aplica o planejado; realizado usa o status atual da tarefa.
             </p>
           </div>
-          <button id="portfolio-refresh" class="portfolio-refresh" type="button">Atualizar painel</button>
+          <button
+            id="portfolio-toggle"
+            class="portfolio-toggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="portfolio-content"
+          >
+            Recolher status visual
+          </button>
         </div>
 
-        <div class="portfolio-tools">
-          <label for="portfolio-filter">Exibicao</label>
-          <select id="portfolio-filter" name="portfolioFilter">
-            <option value="all">Todos os projetos</option>
-            <option value="selected">Somente projetos marcados hoje</option>
-          </select>
-          <label for="portfolio-cutoff">Data de corte</label>
-          <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
+        <div id="portfolio-content" class="portfolio-content">
+          <div class="portfolio-tools">
+            <label for="portfolio-filter">Exibicao</label>
+            <select id="portfolio-filter" name="portfolioFilter">
+              <option value="all">Todos os projetos</option>
+              <option value="selected">Somente projetos marcados hoje</option>
+            </select>
+            <label for="portfolio-cutoff">Data de corte</label>
+            <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
+            <button id="portfolio-refresh" class="portfolio-refresh" type="button">Atualizar painel</button>
+          </div>
+
+          <section id="portfolio-summary" class="portfolio-summary"></section>
+          <section id="portfolio-cards" class="portfolio-cards"></section>
+
+          <section class="portfolio-blocks-wrap">
+            <h3>Bloqueios ativos</h3>
+            <div id="portfolio-blocks" class="portfolio-blocks"></div>
+          </section>
         </div>
-
-        <section id="portfolio-summary" class="portfolio-summary"></section>
-        <section id="portfolio-cards" class="portfolio-cards"></section>
-
-        <section class="portfolio-blocks-wrap">
-          <h3>Bloqueios ativos</h3>
-          <div id="portfolio-blocks" class="portfolio-blocks"></div>
-        </section>
       </section>
 
       <section class="card">
@@ -185,7 +196,7 @@
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
     </main>
 
-    <script src="./config.js?v=20260307e"></script>
-    <script src="./app.js?v=20260307e"></script>
+    <script src="./config.js?v=20260307f"></script>
+    <script src="./app.js?v=20260307f"></script>
   </body>
 </html>

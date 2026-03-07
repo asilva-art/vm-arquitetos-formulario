@@ -12,6 +12,8 @@
   var portfolioFilterEl = document.getElementById("portfolio-filter");
   var portfolioCutoffEl = document.getElementById("portfolio-cutoff");
   var portfolioRefreshEl = document.getElementById("portfolio-refresh");
+  var portfolioToggleEl = document.getElementById("portfolio-toggle");
+  var portfolioContentEl = document.getElementById("portfolio-content");
   var portfolioSummaryEl = document.getElementById("portfolio-summary");
   var portfolioCardsEl = document.getElementById("portfolio-cards");
   var portfolioBlocksEl = document.getElementById("portfolio-blocks");
@@ -184,6 +186,9 @@
         loadPpmSnapshotFromServer();
       });
     }
+    if (portfolioToggleEl && portfolioContentEl) {
+      portfolioToggleEl.addEventListener("click", handlePortfolioToggle);
+    }
     if (guideToggleEl && guideStepsEl) {
       guideToggleEl.addEventListener("click", handleGuideToggle);
     }
@@ -206,6 +211,16 @@
     var isHidden = guideStepsEl.classList.toggle("hidden");
     guideToggleEl.setAttribute("aria-expanded", String(!isHidden));
     guideToggleEl.textContent = isHidden ? "Expandir explicacoes" : "Recolher explicacoes";
+  }
+
+  function handlePortfolioToggle() {
+    if (!portfolioToggleEl || !portfolioContentEl) {
+      return;
+    }
+
+    var isHidden = portfolioContentEl.classList.toggle("hidden");
+    portfolioToggleEl.setAttribute("aria-expanded", String(!isHidden));
+    portfolioToggleEl.textContent = isHidden ? "Expandir status visual" : "Recolher status visual";
   }
 
   function populateProfessionals() {
