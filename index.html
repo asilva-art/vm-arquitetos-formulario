@@ -137,6 +137,7 @@
             <select id="portfolio-filter" name="portfolioFilter">
               <option value="all">Todos os projetos</option>
               <option value="selected">Somente projetos marcados hoje</option>
+              <option value="monday">Reuniao de segunda (coordenacao)</option>
             </select>
             <label for="portfolio-cutoff">Data de corte</label>
             <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
@@ -149,6 +150,19 @@
           <section class="portfolio-blocks-wrap">
             <h3>Bloqueios ativos</h3>
             <div id="portfolio-blocks" class="portfolio-blocks"></div>
+          </section>
+
+          <section id="portfolio-meeting" class="portfolio-meeting hidden">
+            <div class="portfolio-meeting-head">
+              <div>
+                <h3>Pauta automatica da semana</h3>
+                <p class="portfolio-meeting-subtitle">
+                  Consolidacao objetiva para reuniao de coordenacao: pendencias da semana anterior e foco da semana atual.
+                </p>
+              </div>
+              <button id="meeting-copy" class="meeting-copy" type="button">Copiar resumo da reuniao</button>
+            </div>
+            <div id="meeting-agenda" class="meeting-agenda"></div>
           </section>
         </div>
       </section>
@@ -196,7 +210,7 @@
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
     </main>
 
-    <script src="./config.js?v=20260307f"></script>
-    <script src="./app.js?v=20260307f"></script>
+    <script src="./config.js?v=20260307g"></script>
+    <script src="./app.js?v=20260307g"></script>
   </body>
 </html>

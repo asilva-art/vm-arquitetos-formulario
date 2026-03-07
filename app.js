@@ -17,12 +17,16 @@
   var portfolioSummaryEl = document.getElementById("portfolio-summary");
   var portfolioCardsEl = document.getElementById("portfolio-cards");
   var portfolioBlocksEl = document.getElementById("portfolio-blocks");
+  var portfolioMeetingEl = document.getElementById("portfolio-meeting");
+  var meetingAgendaEl = document.getElementById("meeting-agenda");
+  var meetingCopyEl = document.getElementById("meeting-copy");
   var guideToggleEl = document.getElementById("guide-toggle");
   var guideStepsEl = document.getElementById("guide-steps");
   var summaryToggleEl = document.getElementById("summary-toggle");
   var dailySummaryEl = document.getElementById("daily-summary");
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
+  var lastMeetingSummaryText = "";
   var portfolioDataset = [];
   var ppmSnapshotMap = {};
 
@@ -186,6 +190,10 @@
         loadPpmSnapshotFromServer();
       });
     }
+    if (meetingCopyEl) {
+      meetingCopyEl.addEventListener("click", handleMeetingCopy);
+      meetingCopyEl.disabled = true;
+    }
     if (portfolioToggleEl && portfolioContentEl) {
       portfolioToggleEl.addEventListener("click", handlePortfolioToggle);
     }
@@ -221,6 +229,21 @@
     var isHidden = portfolioContentEl.classList.toggle("hidden");
     portfolioToggleEl.setAttribute("aria-expanded", String(!isHidden));
     portfolioToggleEl.textContent = isHidden ? "Expandir status visual" : "Recolher status visual";
+  }
+
+  function handleMeetingCopy() {
+    if (!lastMeetingSummaryText) {
+      showFeedback("warn", "Nao ha pauta de reuniao para copiar.");
+      return;
+    }
+
+    copyTextToClipboard_(lastMeetingSummaryText)
+      .then(function () {
+        showFeedback("ok", "Resumo da reuniao copiado. Cole em COMUNICACOES.");
+      })
+      .catch(function () {
+        showFeedback("error", "Nao foi possivel copiar o resumo automaticamente.");
+      });
   }
 
   function populateProfessionals() {
@@ -815,10 +838,25 @@
     renderPortfolioSummary_(filtered);
     renderPortfolioCards_(filtered);
     renderPortfolioBlocks_(filtered);
+    renderMeetingAgenda_(filtered);
   }
 
   function applyPortfolioFilter_(dataset) {
     var mode = cleanText(portfolioFilterEl && portfolioFilterEl.value);
+    if (mode === "monday") {
+      var mondayItems = dataset.filter(function (item) {
+        return hasWeeklyAttention_(item);
+      });
+
+      if (!mondayItems.length) {
+        mondayItems = dataset.filter(function (item) {
+          return Number(item.emAndamento || 0) > 0 || (item.nextTasks && item.nextTasks.length > 0);
+        });
+      }
+
+      return mondayItems.sort(compareMeetingPriority_);
+    }
+
     if (mode !== "selected") {
       return dataset.slice();
     }
@@ -831,6 +869,46 @@
     return dataset.filter(function (item) {
       return selected.indexOf(item.code) >= 0;
     });
+  }
+
+  function hasWeeklyAttention_(item) {
+    if (!item) {
+      return false;
+    }
+    if (Number(item.atrasadasAteCorte || 0) > 0) {
+      return true;
+    }
+    if (Number(item.bloqueada || 0) > 0) {
+      return true;
+    }
+    if (String(item.semaforo) !== "green") {
+      return true;
+    }
+    return Number(item.emAndamento || 0) > 0;
+  }
+
+  function compareMeetingPriority_(a, b) {
+    var diff = scoreMeetingPriority_(a) - scoreMeetingPriority_(b);
+    if (diff !== 0) {
+      return diff;
+    }
+    return String(a.code || "").localeCompare(String(b.code || ""));
+  }
+
+  function scoreMeetingPriority_(item) {
+    var semaforoScore = 3;
+    if (item && item.semaforo === "red") {
+      semaforoScore = 0;
+    } else if (item && item.semaforo === "yellow") {
+      semaforoScore = 1;
+    } else if (item && item.semaforo === "green") {
+      semaforoScore = 2;
+    }
+
+    var blockedPenalty = Number(item && item.bloqueada ? item.bloqueada : 0) > 0 ? -2 : 0;
+    var delayedPenalty = -Math.min(Number(item && item.atrasadasAteCorte ? item.atrasadasAteCorte : 0), 9);
+
+    return semaforoScore * 10 + blockedPenalty + delayedPenalty;
   }
 
   function buildPortfolioDataset_() {
@@ -1339,6 +1417,187 @@
       .join("");
   }
 
+  function renderMeetingAgenda_(items) {
+    if (!portfolioMeetingEl || !meetingAgendaEl) {
+      return;
+    }
+
+    var mode = cleanText(portfolioFilterEl && portfolioFilterEl.value);
+    if (mode !== "monday") {
+      portfolioMeetingEl.classList.add("hidden");
+      meetingAgendaEl.innerHTML = "";
+      lastMeetingSummaryText = "";
+      if (meetingCopyEl) {
+        meetingCopyEl.disabled = true;
+      }
+      return;
+    }
+
+    portfolioMeetingEl.classList.remove("hidden");
+
+    var cutoffDate = getCutoffDate_();
+    var ranges = buildMeetingWeekRanges_(cutoffDate);
+    var agendaItems = buildMeetingAgendaItems_(items);
+
+    if (!agendaItems.length) {
+      meetingAgendaEl.innerHTML =
+        '<div class="meeting-empty">Nenhuma pendencia critica para a semana. Use este espaco para confirmar focos de manutencao.</div>';
+      lastMeetingSummaryText = buildMeetingSummaryText_([], ranges, cutoffDate);
+      if (meetingCopyEl) {
+        meetingCopyEl.disabled = false;
+      }
+      return;
+    }
+
+    meetingAgendaEl.innerHTML = agendaItems
+      .map(function (item) {
+        var focoHtml = item.focusList.length
+          ? "<ul>" +
+            item.focusList
+              .map(function (focus) {
+                return "<li>" + escapeHtml(focus) + "</li>";
+              })
+              .join("") +
+            "</ul>"
+          : "<p class='portfolio-empty'>Sem foco sugerido.</p>";
+
+        return [
+          '<article class="meeting-card">',
+          '<div class="meeting-card-head">',
+          "<strong>" + escapeHtml(item.label) + "</strong>",
+          '<span class="portfolio-badge ' + escapeAttr(item.semaforo) + '">' + escapeHtml(labelSemaforo_(item.semaforo)) + "</span>",
+          "</div>",
+          "<ul>",
+          "<li>Semana anterior: " +
+            escapeHtml(String(item.realizadasAteCorte)) +
+            "/" +
+            escapeHtml(String(item.planejadasAteCorte)) +
+            " entregas no corte (" +
+            escapeHtml(String(item.aderencia)) +
+            "%).</li>",
+          "<li>Pendencias abertas: " + escapeHtml(String(item.atrasadasAteCorte)) + ".</li>",
+          "<li>Bloqueios ativos: " + escapeHtml(String(item.bloqueada)) + ".</li>",
+          "<li>Foco da semana atual:</li>",
+          "</ul>",
+          focoHtml,
+          "</article>"
+        ].join("");
+      })
+      .join("");
+
+    lastMeetingSummaryText = buildMeetingSummaryText_(agendaItems, ranges, cutoffDate);
+    if (meetingCopyEl) {
+      meetingCopyEl.disabled = false;
+    }
+  }
+
+  function buildMeetingAgendaItems_(items) {
+    return (items || [])
+      .map(function (item) {
+        var aderencia =
+          Number(item.planejadasAteCorte || 0) > 0
+            ? Math.round((Number(item.realizadasAteCorte || 0) / Number(item.planejadasAteCorte || 1)) * 100)
+            : 100;
+        var focusList = (item.nextTasks || []).slice(0, 3).map(function (task) {
+          var text = cleanText(task.refEap);
+          if (cleanText(task.task)) {
+            text += " - " + cleanText(task.task);
+          }
+          if (cleanText(task.status)) {
+            text += " (" + cleanText(task.status) + ")";
+          }
+          return text;
+        });
+
+        return {
+          code: cleanText(item.code),
+          label: cleanText(item.label),
+          semaforo: cleanText(item.semaforo),
+          planejadasAteCorte: Number(item.planejadasAteCorte || 0),
+          realizadasAteCorte: Number(item.realizadasAteCorte || 0),
+          atrasadasAteCorte: Number(item.atrasadasAteCorte || 0),
+          bloqueada: Number(item.bloqueada || 0),
+          aderencia: Math.max(0, Math.min(150, aderencia)),
+          focusList: focusList
+        };
+      })
+      .sort(compareMeetingPriority_);
+  }
+
+  function buildMeetingWeekRanges_(cutoffDate) {
+    var monday = getMondayFromDate_(cutoffDate);
+    var friday = addDays_(monday, 4);
+    if (friday.getTime() > cutoffDate.getTime()) {
+      friday = cloneDate_(cutoffDate);
+    }
+
+    var nextMonday = addDays_(monday, 7);
+    var nextFriday = addDays_(nextMonday, 4);
+
+    return {
+      previousStart: monday,
+      previousEnd: friday,
+      currentStart: nextMonday,
+      currentEnd: nextFriday
+    };
+  }
+
+  function getMondayFromDate_(date) {
+    var cursor = cloneDate_(date);
+    while (cursor.getDay() !== 1) {
+      cursor = addDays_(cursor, -1);
+    }
+    return cursor;
+  }
+
+  function buildMeetingSummaryText_(agendaItems, ranges, cutoffDate) {
+    var lines = [];
+    lines.push("VM + Arquitetos | Resumo da reuniao de coordenacao");
+    lines.push("Data de corte: " + formatDateBr_(cutoffDate));
+    lines.push(
+      "Semana anterior: " +
+        formatDateBr_(ranges.previousStart) +
+        " a " +
+        formatDateBr_(ranges.previousEnd)
+    );
+    lines.push(
+      "Semana atual: " +
+        formatDateBr_(ranges.currentStart) +
+        " a " +
+        formatDateBr_(ranges.currentEnd)
+    );
+    lines.push("");
+
+    if (!agendaItems.length) {
+      lines.push("Sem pendencias criticas nesta virada semanal.");
+      lines.push("Ajuste focos de manutencao por projeto.");
+      return lines.join("\n");
+    }
+
+    agendaItems.forEach(function (item, index) {
+      lines.push(String(index + 1) + ". " + cleanText(item.label) + " [" + labelSemaforo_(item.semaforo) + "]");
+      lines.push(
+        "   - Semana anterior: " +
+          item.realizadasAteCorte +
+          "/" +
+          item.planejadasAteCorte +
+          " entregas (" +
+          item.aderencia +
+          "%)."
+      );
+      lines.push("   - Pendencias abertas: " + item.atrasadasAteCorte + ".");
+      lines.push("   - Bloqueios ativos: " + item.bloqueada + ".");
+      if (item.focusList.length) {
+        lines.push("   - Foco da semana: " + item.focusList.join("; ") + ".");
+      } else {
+        lines.push("   - Foco da semana: definir em reuniao.");
+      }
+      lines.push("");
+    });
+
+    return lines.join("\n");
+  }
+
   function labelSemaforo_(value) {
     if (value === "green") {
       return "Verde";
@@ -1771,6 +2030,37 @@
     var now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     portfolioCutoffEl.value = now.toISOString().slice(0, 10);
+  }
+
+  function copyTextToClipboard_(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(text);
+    }
+
+    return new Promise(function (resolve, reject) {
+      try {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.setAttribute("readonly", "readonly");
+        textArea.style.position = "fixed";
+        textArea.style.top = "-1000px";
+        textArea.style.left = "-1000px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        if (ok) {
+          resolve();
+          return;
+        }
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      reject(new Error("copy_failed"));
+    });
   }
 
   function showFeedback(type, message) {
