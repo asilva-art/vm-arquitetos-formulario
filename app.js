@@ -28,10 +28,25 @@
   var guideToggleEl = document.getElementById("guide-toggle");
   var guideStepsEl = document.getElementById("guide-steps");
   var summaryToggleEl = document.getElementById("summary-toggle");
+  var editLastEl = document.getElementById("edit-last");
   var dailySummaryEl = document.getElementById("daily-summary");
+  var dailyFocusEl = document.getElementById("daily-focus");
+  var dailyFocusListEl = document.getElementById("daily-focus-list");
+  var startFocusEl = document.getElementById("start-focus");
+  var offlineQueueEl = document.getElementById("offline-queue");
+  var offlineQueueTextEl = document.getElementById("offline-queue-text");
+  var retryQueueEl = document.getElementById("retry-queue");
+  var historyPanelEl = document.getElementById("history-panel");
+  var historyListEl = document.getElementById("history-list");
+  var historyRefreshEl = document.getElementById("history-refresh");
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
   var lastMeetingSummaryText = "";
+  var lastFocusItems = [];
+  var historyItems = [];
+  var pendingEditFormId = "";
+  var pendingEditPayload = null;
+  var queueRetryRunning = false;
   var draftSaveTimer = null;
   var portfolioDataset = [];
   var ppmSnapshotMap = {};
@@ -40,7 +55,9 @@
     LAST_PROFESSIONAL: "vm_form_last_professional_v1",
     DRAFT: "vm_form_draft_v1",
     LAST_SUBMISSION: "vm_form_last_submission_v1",
-    PROJECT_USAGE: "vm_form_project_usage_v1"
+    PROJECT_USAGE: "vm_form_project_usage_v1",
+    OFFLINE_QUEUE: "vm_form_offline_queue_v1",
+    EDIT_CONTEXT: "vm_form_edit_context_v1"
   };
 
   var projectMap = {};
@@ -228,14 +245,35 @@
     if (summaryToggleEl) {
       summaryToggleEl.addEventListener("click", handleSummaryToggle);
     }
+    if (editLastEl) {
+      editLastEl.addEventListener("click", handleEditLastSubmission_);
+    }
+    if (startFocusEl) {
+      startFocusEl.addEventListener("click", handleStartFocus_);
+    }
+    if (historyRefreshEl) {
+      historyRefreshEl.addEventListener("click", loadHistoryFromServer_);
+    }
+    if (retryQueueEl) {
+      retryQueueEl.addEventListener("click", flushOfflineQueue_);
+    }
+    window.addEventListener("online", function () {
+      updateOfflineQueueUi_();
+      flushOfflineQueue_();
+    });
 
     restoreDraftIfAny_();
+    restoreEditContext_();
     loadRefOptionsFromServer();
     loadPpmSnapshotFromServer();
+    loadHistoryFromServer_();
     portfolioDataset = buildPortfolioDataset_();
     renderPortfolioOverview();
+    renderDailyFocus_();
+    updateOfflineQueueUi_();
+    flushOfflineQueue_();
     updateFormChecklist_();
-    clearSummaryUI();
+    ensureEditButtonState_();
   }
 
   function handleGuideToggle() {
@@ -291,6 +329,8 @@
     rememberLastProfessional_(cleanText((professionalEl || {}).value));
     var draft = buildCurrentDraft_();
     refreshProjectsKeepingDraft_(draft);
+    loadHistoryFromServer_();
+    renderDailyFocus_();
   }
 
   function handleFormInteraction_(event) {
@@ -384,6 +424,7 @@
   }
 
   function handleRepeatLastSubmission_() {
+    clearEditMode_();
     var last = getStorageJson_(STORAGE_KEYS.LAST_SUBMISSION);
     if (!last || !Array.isArray(last.projects) || !last.projects.length) {
       showFeedback("warn", "Nenhum preenchimento anterior encontrado neste navegador.");
@@ -422,6 +463,7 @@
     });
 
     updateFormChecklist_();
+    renderDailyFocus_();
     scheduleDraftSave_();
     showFeedback("ok", "Ultimo preenchimento replicado. Revise e envie.");
   }
@@ -735,6 +777,7 @@
     renderProjectSections(getSelectedProjectCodes());
     applyDraftValuesToSections_(draft);
     renderPortfolioOverview();
+    renderDailyFocus_();
     updateFormChecklist_();
     scheduleDraftSave_();
   }
@@ -1126,6 +1169,10 @@
       submittedAt: new Date().toISOString(),
       source: "vm-arquitetos-web-v1"
     };
+    var isEditing = !!cleanText(pendingEditFormId);
+    if (isEditing) {
+      payload.editFormId = cleanText(pendingEditFormId);
+    }
 
     rememberLastProfessional_(professional);
 
@@ -1135,21 +1182,28 @@
     sendPayload(appsScriptUrl, payload)
       .then(function (result) {
         if (result.mode === "cors" && result.data && result.data.status === "ok") {
-          var msg = "Registro enviado com sucesso.";
+          var formId = cleanText(result.data.formId) || cleanText(payload.editFormId);
+          var msg = isEditing ? "Edicao salva com sucesso." : "Registro enviado com sucesso.";
           if (result.data.formId) {
             msg += " ID: " + result.data.formId + ".";
           }
           if (result.data.rowsCreated) {
             msg += " Linhas criadas: " + result.data.rowsCreated + ".";
           }
+          var summary = result.data.dailySummary || buildFallbackDailySummary(payload);
+          msg += " " + buildPostSubmitHint_(summary);
           rememberProjectUsage_(professional, selectedCodes);
           saveLastSubmissionTemplate_(payload);
+          saveEditContext_(formId, payload);
           clearDraft_();
           showFeedback("ok", msg);
-          setSummaryForSubmission(result.data.dailySummary || buildFallbackDailySummary(payload));
+          setSummaryForSubmission(summary);
+          clearEditMode_();
           resetForm();
           loadRefOptionsFromServer();
           loadPpmSnapshotFromServer();
+          loadHistoryFromServer_();
+          renderDailyFocus_();
           return;
         }
 
@@ -1164,18 +1218,61 @@
         );
         rememberProjectUsage_(professional, selectedCodes);
         saveLastSubmissionTemplate_(payload);
+        if (cleanText(payload.editFormId)) {
+          saveEditContext_(cleanText(payload.editFormId), payload);
+        }
         clearDraft_();
+        clearEditMode_();
         resetForm();
         loadRefOptionsFromServer();
         loadPpmSnapshotFromServer();
+        loadHistoryFromServer_();
+        renderDailyFocus_();
       })
       .catch(function (err) {
+        if (shouldQueueSubmission_(err)) {
+          enqueueOfflineSubmission_(payload);
+          showFeedback(
+            "warn",
+            "Sem internet agora. O envio foi guardado e sera reenviado automaticamente quando a conexao voltar."
+          );
+          clearEditMode_();
+          return;
+        }
         showFeedback("error", err.message || "Nao foi possivel enviar. Tente novamente.");
       })
       .then(function () {
         submitButtonEl.disabled = false;
-        submitButtonEl.textContent = "Enviar registro diario";
+        if (!cleanText(pendingEditFormId)) {
+          submitButtonEl.textContent = "Enviar registro diario";
+        }
       });
+  }
+
+  function buildPostSubmitHint_(summary) {
+    var projects = summary && Array.isArray(summary.projects) ? summary.projects : [];
+    if (!projects.length) {
+      return "Faltou algo? Use Editar ultimo envio para ajustar.";
+    }
+
+    var totalPendencias = 0;
+    var nextFocus = "";
+    projects.forEach(function (project) {
+      var snapshot = project && project.snapshot ? project.snapshot : {};
+      totalPendencias += Number(snapshot.pendentes || 0);
+      if (!nextFocus && project && Array.isArray(project.nextTasks) && project.nextTasks.length) {
+        nextFocus = cleanText(project.nextTasks[0].refEap) || cleanText(project.nextTasks[0].task);
+      }
+    });
+
+    var message = "Faltou algo? Use Editar ultimo envio para ajustes.";
+    if (totalPendencias > 0) {
+      message += " Pendencias abertas: " + totalPendencias + ".";
+    }
+    if (nextFocus) {
+      message += " Proximo foco sugerido: " + nextFocus + ".";
+    }
+    return message;
   }
 
   function sendPayload(url, payload) {
@@ -1196,13 +1293,18 @@
           }
 
           if (!response.ok) {
-            throw new Error((data && data.message) || "Falha de comunicacao com o backend.");
+            var httpError = new Error((data && data.message) || "Falha de comunicacao com o backend.");
+            httpError.isHttp = true;
+            throw httpError;
           }
 
           return { mode: "cors", data: data };
         });
       })
-      .catch(function () {
+      .catch(function (error) {
+        if (error && error.isHttp) {
+          throw error;
+        }
         return fetch(url, {
           method: "POST",
           mode: "no-cors",
@@ -1263,6 +1365,7 @@
           applyDraftValuesToSections_(previousDraft);
           portfolioDataset = buildPortfolioDataset_();
           renderPortfolioOverview();
+          renderDailyFocus_();
           updateFormChecklist_();
         }
       } finally {
@@ -1312,6 +1415,7 @@
         if (data && data.status === "ok") {
           ppmSnapshotMap = normalizePpmSnapshot_(data);
           renderPortfolioOverview();
+          renderDailyFocus_();
         }
       } finally {
         finish();
@@ -1356,6 +1460,7 @@
             realEnd: parseDateFlexible_(task && task.realEnd),
             lastRecordDate: parseDateFlexible_(task && task.lastRecordDate),
             updatedAt: parseDateFlexible_(task && task.updatedAt),
+            responsible: cleanText(task && task.responsible),
             blocked: !!(task && task.blocked),
             blockReason: cleanText(task && task.blockReason)
           };
@@ -1381,8 +1486,515 @@
     renderMeetingAgenda_(filtered);
   }
 
+  function renderDailyFocus_() {
+    if (!dailyFocusEl || !dailyFocusListEl) {
+      return;
+    }
+
+    var professional = cleanText((professionalEl || {}).value);
+    lastFocusItems = buildDailyFocusItems_(professional);
+    ensureEditButtonState_();
+
+    if (!lastFocusItems.length) {
+      dailyFocusEl.classList.add("hidden");
+      dailyFocusListEl.innerHTML = "";
+      return;
+    }
+
+    dailyFocusEl.classList.remove("hidden");
+    dailyFocusListEl.innerHTML = lastFocusItems
+      .map(function (item, index) {
+        var statusTagClass = item.status === "BLOQUEADA" ? "blocked" : (item.status === "EM ANDAMENTO" ? "doing" : "todo");
+        return [
+          '<article class="daily-focus-item' + (index === 0 ? " highlight" : "") + '">',
+          '<div class="daily-focus-item-head">',
+          '<strong>' + escapeHtml(item.projectLabel) + "</strong>",
+          '<span class="daily-focus-tag ' + escapeAttr(statusTagClass) + '">' + escapeHtml(item.status) + "</span>",
+          "</div>",
+          '<p><span class="daily-focus-ref">' + escapeHtml(item.refEap) + "</span> - " + escapeHtml(item.task || "Sem descricao da tarefa") + "</p>",
+          '<p class="daily-focus-meta">Responsavel: ' + escapeHtml(item.responsible || "Nao definido") + "</p>",
+          "</article>"
+        ].join("");
+      })
+      .join("");
+  }
+
+  function buildDailyFocusItems_(professional) {
+    var selectedCodes = getSelectedProjectCodes();
+    var selectedMap = {};
+    selectedCodes.forEach(function (code) {
+      selectedMap[code] = true;
+    });
+
+    var owner = cleanText(professional).toUpperCase();
+    var today = getCutoffDate_();
+    var items = [];
+    var code;
+
+    for (code in ppmSnapshotMap) {
+      if (!Object.prototype.hasOwnProperty.call(ppmSnapshotMap, code)) {
+        continue;
+      }
+
+      var project = ppmSnapshotMap[code] || {};
+      var projectLabel = formatProjectLabel_(code, cleanText(project.projectName));
+      var tasks = Array.isArray(project.tasks) ? project.tasks : [];
+      var i;
+      for (i = 0; i < tasks.length; i += 1) {
+        var task = tasks[i];
+        var status = normalizePortfolioStatus_(task && task.status);
+        if (status === "CONCLUIDA") {
+          continue;
+        }
+
+        var responsible = cleanText(task && task.responsible);
+        var plannedEnd = parseDateFlexible_(task && task.plannedEnd);
+        var overdueDays = 0;
+        if (plannedEnd && plannedEnd.getTime() < today.getTime()) {
+          overdueDays = Math.floor((today.getTime() - plannedEnd.getTime()) / (24 * 60 * 60 * 1000));
+        }
+
+        var score = 0;
+        if (status === "EM ANDAMENTO") {
+          score -= 20;
+        } else if (status === "BLOQUEADA") {
+          score -= 15;
+        }
+
+        if (owner && cleanText(responsible).toUpperCase() === owner) {
+          score -= 25;
+        }
+        if (selectedMap[code]) {
+          score -= 8;
+        }
+        if (overdueDays > 0) {
+          score -= Math.min(overdueDays, 10);
+        }
+
+        items.push({
+          projectCode: code,
+          projectLabel: projectLabel,
+          refEap: cleanText(task && task.refEap),
+          task: cleanText(task && task.task),
+          status: status,
+          responsible: responsible,
+          plannedEnd: plannedEnd,
+          score: score
+        });
+      }
+    }
+
+    items.sort(function (a, b) {
+      if (a.score !== b.score) {
+        return a.score - b.score;
+      }
+      if (a.plannedEnd && b.plannedEnd) {
+        return a.plannedEnd.getTime() - b.plannedEnd.getTime();
+      }
+      return String(a.refEap || "").localeCompare(String(b.refEap || ""));
+    });
+
+    return items.slice(0, 5);
+  }
+
+  function handleStartFocus_() {
+    if (!lastFocusItems.length) {
+      showFeedback("warn", "Sem foco recomendado no momento.");
+      return;
+    }
+
+    var focus = lastFocusItems[0];
+    var draft = buildCurrentDraft_();
+    var selectedCodes = (Array.isArray(draft.selectedCodes) ? draft.selectedCodes.slice() : []);
+    if (selectedCodes.indexOf(focus.projectCode) < 0) {
+      selectedCodes.push(focus.projectCode);
+    }
+
+    populateProjects();
+    selectProjectCodes_(selectedCodes);
+    renderProjectSections(selectedCodes);
+    applyDraftValuesToSections_(draft);
+
+    var key = sanitizeKey(focus.projectCode);
+    var refEl = document.getElementById("ref-" + key);
+    var taskRefEl = document.getElementById("task-ref-" + key);
+    var statusInput = document.querySelector('input[name="status-' + key + '"][value="EM_ANDAMENTO"]');
+    if (refEl && cleanText(focus.refEap)) {
+      refEl.value = cleanText(focus.refEap);
+    }
+    if (taskRefEl && cleanText(focus.refEap)) {
+      taskRefEl.value = cleanText(focus.refEap);
+    }
+    if (statusInput) {
+      statusInput.checked = true;
+    }
+
+    updateFormChecklist_();
+    scheduleDraftSave_();
+    showFeedback("ok", "Foco recomendado aplicado em " + focus.projectLabel + ". Revise e envie.");
+
+    var section = document.querySelector('[data-project-code="' + focus.projectCode + '"]');
+    if (section && typeof section.scrollIntoView === "function") {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function loadHistoryFromServer_() {
+    if (!historyPanelEl || !historyListEl) {
+      return;
+    }
+
+    var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+    if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      historyItems = [];
+      renderHistoryPanel_();
+      return;
+    }
+
+    var callbackName = "vmHistoryCb_" + String(Date.now());
+    var script = document.createElement("script");
+    var settled = false;
+
+    function finish() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      try {
+        delete window[callbackName];
+      } catch (err) {
+        window[callbackName] = undefined;
+      }
+      if (script && script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function (data) {
+      try {
+        if (data && data.status === "ok" && Array.isArray(data.history)) {
+          historyItems = data.history;
+        } else {
+          historyItems = [];
+        }
+        renderHistoryPanel_();
+      } finally {
+        finish();
+      }
+    };
+
+    var params = {
+      action: "history",
+      limit: 10,
+      callback: callbackName,
+      _: Date.now()
+    };
+    var professional = cleanText((professionalEl || {}).value);
+    if (professional) {
+      params.professional = professional;
+    }
+
+    script.async = true;
+    script.src = buildUrlWithParams(appsScriptUrl, params);
+    script.onerror = function () {
+      historyItems = [];
+      renderHistoryPanel_();
+      finish();
+    };
+    document.body.appendChild(script);
+    setTimeout(finish, 12000);
+  }
+
+  function renderHistoryPanel_() {
+    if (!historyPanelEl || !historyListEl) {
+      return;
+    }
+
+    if (!historyItems.length) {
+      historyPanelEl.classList.add("hidden");
+      historyListEl.innerHTML = "";
+      return;
+    }
+
+    historyPanelEl.classList.remove("hidden");
+    historyListEl.innerHTML = historyItems
+      .map(function (item) {
+        var projects = Array.isArray(item.projects) ? item.projects : [];
+        var preview = projects
+          .slice(0, 3)
+          .map(function (project) {
+            var text = cleanText(project.projectCode) || cleanText(project.projectName) || "Projeto";
+            if (cleanText(project.refEap)) {
+              text += " - " + cleanText(project.refEap);
+            }
+            return "<li>" + escapeHtml(text) + "</li>";
+          })
+          .join("");
+        var more = projects.length > 3 ? "<li>+" + String(projects.length - 3) + " item(ns)</li>" : "";
+
+        return [
+          '<article class="history-item">',
+          '<div class="history-item-head">',
+          '<strong>' + escapeHtml(cleanText(item.formId) || "Sem ID") + "</strong>",
+          '<span>' + escapeHtml(cleanText(item.dateBr) || "-") + " | " + escapeHtml(cleanText(item.professional) || "-") + "</span>",
+          "</div>",
+          '<p>' + escapeHtml(String(projects.length)) + " projeto(s) neste envio.</p>",
+          "<ul>" + preview + more + "</ul>",
+          "</article>"
+        ].join("");
+      })
+      .join("");
+  }
+
+  function restoreEditContext_() {
+    var data = getStorageJson_(STORAGE_KEYS.EDIT_CONTEXT);
+    if (!data || typeof data !== "object") {
+      pendingEditFormId = "";
+      pendingEditPayload = null;
+      return;
+    }
+
+    pendingEditFormId = "";
+    pendingEditPayload = {
+      formId: cleanText(data.formId),
+      payload: data.payload || null
+    };
+  }
+
+  function saveEditContext_(formId, payload) {
+    if (!cleanText(formId) || !payload) {
+      return;
+    }
+    pendingEditPayload = {
+      formId: cleanText(formId),
+      payload: payload
+    };
+    setStorageJson_(STORAGE_KEYS.EDIT_CONTEXT, pendingEditPayload);
+    ensureEditButtonState_();
+  }
+
+  function clearEditMode_() {
+    pendingEditFormId = "";
+    if (submitButtonEl) {
+      submitButtonEl.textContent = "Enviar registro diario";
+    }
+  }
+
+  function ensureEditButtonState_() {
+    if (!editLastEl) {
+      return;
+    }
+    var professional = cleanText((professionalEl || {}).value);
+    var context = pendingEditPayload || getStorageJson_(STORAGE_KEYS.EDIT_CONTEXT);
+    if (!context || !context.payload) {
+      editLastEl.classList.add("hidden");
+      return;
+    }
+
+    var ctxProfessional = cleanText(context.payload.professional);
+    if (professional && ctxProfessional && professional !== ctxProfessional) {
+      editLastEl.classList.add("hidden");
+      return;
+    }
+    editLastEl.classList.remove("hidden");
+  }
+
+  function handleEditLastSubmission_() {
+    var context = pendingEditPayload || getStorageJson_(STORAGE_KEYS.EDIT_CONTEXT);
+    if (!context || !context.payload || !cleanText(context.formId)) {
+      showFeedback("warn", "Nenhum envio anterior disponivel para edicao neste navegador.");
+      return;
+    }
+
+    var payload = context.payload;
+    pendingEditFormId = cleanText(context.formId);
+    applyPayloadToForm_(payload);
+    if (submitButtonEl) {
+      submitButtonEl.textContent = "Salvar edicao";
+    }
+    showFeedback("warn", "Modo edicao ativo para " + pendingEditFormId + ". Revise e clique em Salvar edicao.");
+  }
+
+  function applyPayloadToForm_(payload) {
+    if (!payload || !Array.isArray(payload.projects) || !payload.projects.length) {
+      return;
+    }
+
+    var professional = cleanText(payload.professional);
+    var workDate = cleanText(payload.date);
+
+    if (professionalEl && professional) {
+      professionalEl.value = professional;
+      rememberLastProfessional_(professional);
+    }
+    if (dateEl && workDate) {
+      dateEl.value = workDate;
+    }
+
+    var selectedCodes = payload.projects
+      .map(function (item) {
+        return cleanText(item && item.projectCode);
+      })
+      .filter(Boolean);
+
+    populateProjects();
+    selectProjectCodes_(selectedCodes);
+    renderProjectSections(selectedCodes);
+
+    payload.projects.forEach(function (project) {
+      var code = cleanText(project && project.projectCode);
+      if (!code) {
+        return;
+      }
+      applySectionValues_(code, {
+        refEap: cleanText(project && project.refEap),
+        taskRefEap: cleanText(project && project.taskRefEap),
+        taskFreeText: cleanText(project && project.taskFreeText),
+        statusCode: cleanText(project && project.statusCode),
+        blockCode: cleanText(project && project.blockCode),
+        blockDescription: cleanText(project && project.blockDescription),
+        observation: cleanText(project && project.observation)
+      });
+    });
+
+    updateFormChecklist_();
+    renderDailyFocus_();
+    scheduleDraftSave_();
+  }
+
+  function getOfflineQueue_() {
+    var queue = getStorageJson_(STORAGE_KEYS.OFFLINE_QUEUE);
+    if (!Array.isArray(queue)) {
+      return [];
+    }
+    return queue.filter(function (item) {
+      return item && item.payload;
+    });
+  }
+
+  function setOfflineQueue_(queue) {
+    setStorageJson_(STORAGE_KEYS.OFFLINE_QUEUE, Array.isArray(queue) ? queue : []);
+    updateOfflineQueueUi_();
+  }
+
+  function enqueueOfflineSubmission_(payload) {
+    var queue = getOfflineQueue_();
+    queue.push({
+      queuedAt: new Date().toISOString(),
+      payload: payload
+    });
+    setOfflineQueue_(queue);
+  }
+
+  function updateOfflineQueueUi_() {
+    if (!offlineQueueEl || !offlineQueueTextEl) {
+      return;
+    }
+    var queue = getOfflineQueue_();
+    if (!queue.length) {
+      offlineQueueEl.classList.add("hidden");
+      offlineQueueTextEl.textContent = "Sem envios pendentes.";
+      return;
+    }
+
+    offlineQueueEl.classList.remove("hidden");
+    offlineQueueTextEl.textContent = queue.length + " envio(s) pendente(s) aguardando internet.";
+  }
+
+  function flushOfflineQueue_() {
+    if (queueRetryRunning) {
+      return;
+    }
+    if (!navigator.onLine) {
+      updateOfflineQueueUi_();
+      return;
+    }
+
+    var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+    if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      return;
+    }
+
+    var queue = getOfflineQueue_();
+    if (!queue.length) {
+      updateOfflineQueueUi_();
+      return;
+    }
+
+    queueRetryRunning = true;
+    processOfflineQueueItem_(appsScriptUrl, queue, 0)
+      .then(function (result) {
+        setOfflineQueue_(result.remaining);
+        if (result.sent > 0) {
+          loadRefOptionsFromServer();
+          loadPpmSnapshotFromServer();
+          loadHistoryFromServer_();
+          showFeedback("ok", "Envios pendentes reenviados: " + result.sent + ".");
+        }
+      })
+      .finally(function () {
+        queueRetryRunning = false;
+      });
+  }
+
+  function processOfflineQueueItem_(url, queue, sentCount) {
+    if (!queue.length) {
+      return Promise.resolve({ remaining: [], sent: sentCount });
+    }
+
+    var current = queue[0];
+    return sendPayload(url, current.payload)
+      .then(function (result) {
+        if (result.mode === "cors" && result.data && result.data.status === "error") {
+          return { remaining: queue, sent: sentCount };
+        }
+        return processOfflineQueueItem_(url, queue.slice(1), sentCount + 1);
+      })
+      .catch(function () {
+        return { remaining: queue, sent: sentCount };
+      });
+  }
+
+  function shouldQueueSubmission_(error) {
+    var message = cleanText(error && error.message).toLowerCase();
+    if (!message) {
+      return true;
+    }
+    if (message.indexOf("falha de comunicacao") >= 0) {
+      return true;
+    }
+    if (message.indexOf("network") >= 0 || message.indexOf("fetch") >= 0 || message.indexOf("offline") >= 0) {
+      return true;
+    }
+    return false;
+  }
+
   function applyPortfolioFilter_(dataset) {
     var mode = cleanText(portfolioFilterEl && portfolioFilterEl.value);
+    if (mode === "coord-critical") {
+      return dataset
+        .filter(function (item) {
+          return item.semaforo === "red" || Number(item.atrasadasAteCorte || 0) > 0 || Number(item.bloqueada || 0) > 0;
+        })
+        .sort(compareMeetingPriority_);
+    }
+
+    if (mode === "coord-risk") {
+      return dataset
+        .filter(function (item) {
+          return item.semaforo === "yellow" || item.semaforo === "red";
+        })
+        .sort(compareMeetingPriority_);
+    }
+
+    if (mode === "coord-blocked") {
+      return dataset
+        .filter(function (item) {
+          return Number(item.bloqueada || 0) > 0;
+        })
+        .sort(compareMeetingPriority_);
+    }
+
     if (mode === "monday") {
       var mondayItems = dataset.filter(function (item) {
         return hasWeeklyAttention_(item);
@@ -2207,6 +2819,7 @@
       summaryToggleEl.textContent = "Ver resumo deste envio";
       summaryToggleEl.classList.remove("hidden");
     }
+    ensureEditButtonState_();
   }
 
   function handleSummaryToggle() {
@@ -2229,6 +2842,9 @@
     if (summaryToggleEl) {
       summaryToggleEl.classList.add("hidden");
       summaryToggleEl.textContent = "Ver resumo deste envio";
+    }
+    if (editLastEl) {
+      editLastEl.classList.add("hidden");
     }
     if (dailySummaryEl) {
       dailySummaryEl.classList.add("hidden");
@@ -2427,6 +3043,8 @@
       bulkBlockEl.value = "";
     }
     updateFormChecklist_();
+    ensureEditButtonState_();
+    renderDailyFocus_();
   }
 
   function getSelectedProjectCodes() {

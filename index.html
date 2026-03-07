@@ -138,6 +138,9 @@
               <option value="all">Todos os projetos</option>
               <option value="selected">Somente projetos marcados hoje</option>
               <option value="monday">Reuniao de segunda (coordenacao)</option>
+              <option value="coord-critical">Coordenacao: criticos</option>
+              <option value="coord-risk">Coordenacao: risco (amarelo/vermelho)</option>
+              <option value="coord-blocked">Coordenacao: bloqueados</option>
             </select>
             <label for="portfolio-cutoff">Data de corte</label>
             <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
@@ -197,6 +200,14 @@
             <div id="project-list" class="check-list"></div>
           </div>
 
+          <section id="daily-focus" class="daily-focus hidden" aria-label="Pendencias prioritarias">
+            <div class="daily-focus-head">
+              <p class="daily-focus-title">Pendencias prioritarias de hoje</p>
+              <button id="start-focus" class="daily-focus-btn" type="button">Comecar pelo foco recomendado</button>
+            </div>
+            <div id="daily-focus-list" class="daily-focus-list"></div>
+          </section>
+
           <section class="quick-actions" aria-label="Acoes rapidas de preenchimento">
             <p class="quick-actions-title">Acoes rapidas</p>
             <div class="quick-actions-grid">
@@ -229,11 +240,26 @@
       </section>
 
       <section id="feedback" class="feedback hidden" aria-live="polite"></section>
+      <section id="offline-queue" class="offline-queue hidden" aria-live="polite">
+        <p id="offline-queue-text">Sem envios pendentes.</p>
+        <button id="retry-queue" class="retry-queue" type="button">Reenviar pendentes</button>
+      </section>
       <button id="summary-toggle" class="summary-toggle hidden" type="button">Ver resumo deste envio</button>
+      <button id="edit-last" class="summary-toggle secondary hidden" type="button">Editar ultimo envio</button>
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
+      <section id="history-panel" class="history-panel card hidden" aria-live="polite">
+        <div class="history-head">
+          <div>
+            <p class="history-kicker">Historico rapido</p>
+            <h3>Ultimos 10 envios</h3>
+          </div>
+          <button id="history-refresh" class="history-refresh" type="button">Atualizar historico</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </section>
     </main>
 
-    <script src="./config.js?v=20260307h"></script>
-    <script src="./app.js?v=20260307h"></script>
+    <script src="./config.js?v=20260307j"></script>
+    <script src="./app.js?v=20260307j"></script>
   </body>
 </html>

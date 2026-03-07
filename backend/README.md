@@ -8,10 +8,12 @@
 - Exige `REF EAP` por secao do formulario (rastreabilidade fina).
 - Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
 - Expõe `action=ppm_snapshot` com status por tarefa e datas (planejado/real) da `📌 CONTROLE_EAP_ATUAL`.
+- Expõe `action=history` com os ultimos envios (ate 10 por padrao), com filtro opcional por profissional.
 - Le contratos automaticamente da aba `CONTRATOS` (IDs `CT-...`) para montar os projetos ativos.
 - Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
 - Gera `ID ENVIO FORM.` no formato `FORM-AAAAMMDD-NNN`.
+- Permite editar envio existente via `editFormId` sem criar duplicata, reconstruindo o controle automaticamente.
 - Inclui reset total para reconstruir a base com `EAP_PADRAO_V1` (10 fases / 48 itens).
 
 ## Arquivos

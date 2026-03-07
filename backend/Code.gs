@@ -181,6 +181,14 @@ function doGet(e) {
     return jsonOrJsonp_(response, callback);
   }
 
+  if (action === "history") {
+    response = buildHistoryPayload_(
+      e && e.parameter ? e.parameter.professional : "",
+      e && e.parameter ? e.parameter.limit : ""
+    );
+    return jsonOrJsonp_(response, callback);
+  }
+
   if (action === "resumo_controle") {
     response = resumoControleEapAtual();
     return jsonOrJsonp_(response, callback);
@@ -204,33 +212,46 @@ function doPost(e) {
 
     var payload = parsePayload_(e);
     var input = normalizePayload_(payload);
+    var editFormId = clean_(payload.editFormId);
     var executionSheet = getExecutionSheet_();
-
-    enforceNoDuplicate_(executionSheet, input.professional, input.dateKey);
-
+    var nowBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
     var controlContext = prepareControlContext_();
-    var formId = generateFormId_(executionSheet, input.dateObj);
+    var formId = editFormId || "";
+
+    if (!editFormId) {
+      enforceNoDuplicate_(executionSheet, input.professional, input.dateKey);
+      formId = generateFormId_(executionSheet, input.dateObj);
+    } else {
+      ensureExistingFormId_(executionSheet, editFormId);
+    }
+
     var records = buildSubmissionRecords_(input, controlContext.rows);
     var executionRows = buildExecutionRows_(records, input, formId);
-    var executionStartRow = Math.max(executionSheet.getLastRow() + 1, EXEC_DATA_START_ROW);
 
-    executionSheet.getRange(executionStartRow, 1, executionRows.length, 17).setValues(executionRows);
+    if (editFormId) {
+      replaceExecutionRowsByFormId_(executionSheet, editFormId, executionRows);
+      controlContext.rows = rebuildControlFromExecution_(executionSheet);
+    } else {
+      var executionStartRow = Math.max(executionSheet.getLastRow() + 1, EXEC_DATA_START_ROW);
+      executionSheet.getRange(executionStartRow, 1, executionRows.length, 17).setValues(executionRows);
 
-    var syncMeta = {
-      dateBr: input.dateBr,
-      professional: input.professional,
-      formId: formId,
-      updatedAtBr: Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy")
-    };
+      var syncMeta = {
+        dateBr: input.dateBr,
+        professional: input.professional,
+        formId: formId,
+        updatedAtBr: nowBr
+      };
+      syncControlFromRecords_(controlContext, records, syncMeta);
+    }
 
-    syncControlFromRecords_(controlContext, records, syncMeta);
     var dailySummary = buildDailySubmissionSummary_(input, records, controlContext.rows);
 
     return json_({
       status: "ok",
-      message: "Registro salvo com sucesso.",
+      message: editFormId ? "Edicao salva com sucesso." : "Registro salvo com sucesso.",
       formId: formId,
       rowsCreated: executionRows.length,
+      edited: !!editFormId,
       controlUpdated: true,
       dailySummary: dailySummary
     });
@@ -1316,6 +1337,123 @@ function generateFormId_(sheet, dateObj) {
   return prefix + ("000" + (maxCounter + 1)).slice(-3);
 }
 
+function ensureExistingFormId_(sheet, formId) {
+  var indexes = findExecutionRowIndexesByFormId_(sheet, formId);
+  if (!indexes.length) {
+    throw new Error("Nao foi encontrado envio com ID " + formId + " para edicao.");
+  }
+}
+
+function findExecutionRowIndexesByFormId_(sheet, formId) {
+  var target = clean_(formId);
+  var indexes = [];
+  var lastRow = sheet.getLastRow();
+  var i;
+
+  if (!target || lastRow < EXEC_DATA_START_ROW) {
+    return indexes;
+  }
+
+  var values = sheet.getRange(EXEC_DATA_START_ROW, 17, lastRow - EXEC_DATA_START_ROW + 1, 1).getValues();
+  for (i = 0; i < values.length; i += 1) {
+    if (clean_(values[i][0]) === target) {
+      indexes.push(EXEC_DATA_START_ROW + i);
+    }
+  }
+  return indexes;
+}
+
+function replaceExecutionRowsByFormId_(sheet, formId, newRows) {
+  var indexes = findExecutionRowIndexesByFormId_(sheet, formId);
+  var i;
+
+  if (!indexes.length) {
+    throw new Error("Nao foi encontrado envio com ID " + formId + " para edicao.");
+  }
+
+  indexes.sort(function (a, b) {
+    return b - a;
+  });
+
+  for (i = 0; i < indexes.length; i += 1) {
+    sheet.deleteRow(indexes[i]);
+  }
+
+  if (newRows && newRows.length) {
+    var startRow = Math.max(sheet.getLastRow() + 1, EXEC_DATA_START_ROW);
+    sheet.getRange(startRow, 1, newRows.length, 17).setValues(newRows);
+  }
+}
+
+function rebuildControlFromExecution_(executionSheet) {
+  var controlSheet = getOrCreateControlSheet_();
+  var rows = buildControlRowsFromStandardTemplate_();
+  var updatedAtBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
+  var lastRow = executionSheet.getLastRow();
+  var values = [];
+  var i;
+
+  if (lastRow >= EXEC_DATA_START_ROW) {
+    values = executionSheet.getRange(EXEC_DATA_START_ROW, 1, lastRow - EXEC_DATA_START_ROW + 1, 17).getValues();
+  }
+
+  for (i = 0; i < values.length; i += 1) {
+    var executionRow = values[i];
+    var parsed = parseExecutionRowForControl_(executionRow, updatedAtBr);
+    if (!parsed) {
+      continue;
+    }
+
+    var rowIndex = findControlRowIndexForRecord_(rows, parsed.record);
+    if (rowIndex < 0) {
+      rows.push(createAdHocControlRow_(parsed.record, parsed.meta));
+      rowIndex = rows.length - 1;
+    }
+
+    updateControlRowFromRecord_(rows[rowIndex], parsed.record, parsed.meta);
+  }
+
+  writeControlRows_(controlSheet, rows);
+  return rows;
+}
+
+function parseExecutionRowForControl_(row, fallbackUpdatedAtBr) {
+  var contractId = clean_(row[1]);
+  var projectName = clean_(row[0]);
+  var phase = clean_(row[2]);
+  var taskText = clean_(row[3]);
+
+  if (!contractId || !projectName || !phase || !taskText) {
+    return null;
+  }
+
+  var isBlocked = /^sim/i.test(clean_(row[10]));
+  var statusText = clean_(row[8]);
+  var record = {
+    projectName: projectName,
+    contractId: contractId,
+    phase: phase,
+    taskText: taskText,
+    refEap: clean_(row[5]) || buildRefEap_(contractId, phase),
+    statusText: statusText,
+    statusClass: classifyControlStatus_(statusText, isBlocked),
+    isBlocked: isBlocked,
+    blockReason: clean_(row[11]),
+    observation: clean_(row[14]),
+    responsible: clean_(row[6]),
+    sectionName: clean_(row[4])
+  };
+
+  var meta = {
+    dateBr: clean_(row[13]) || fallbackUpdatedAtBr,
+    professional: clean_(row[6]),
+    formId: clean_(row[16]),
+    updatedAtBr: clean_(row[15]) || fallbackUpdatedAtBr
+  };
+
+  return { record: record, meta: meta };
+}
+
 function parseDate_(value) {
   if (!value) {
     return null;
@@ -1479,6 +1617,7 @@ function buildPpmSnapshotPayload_() {
       realEnd: toIsoDateOrBlank_(row[12]),
       lastRecordDate: toIsoDateOrBlank_(row[18]),
       updatedAt: toIsoDateOrBlank_(row[17]),
+      responsible: clean_(row[10]),
       blocked: /^sim/i.test(clean_(row[15])),
       blockReason: clean_(row[16]),
       percentReal: toNumberOrBlank_(row[13], "")
@@ -1515,6 +1654,68 @@ function buildPpmSnapshotPayload_() {
     status: "ok",
     generatedAt: Utilities.formatDate(new Date(), getTz_(), "yyyy-MM-dd'T'HH:mm:ss"),
     projects: projects
+  };
+}
+
+function buildHistoryPayload_(professional, limit) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EXEC_SHEET_NAME);
+  var maxItems = Number(limit);
+  var targetProfessional = normalizeName_(professional);
+  var grouped = {};
+  var order = [];
+  var history = [];
+  var i;
+
+  if (isNaN(maxItems) || maxItems <= 0) {
+    maxItems = 10;
+  }
+  maxItems = Math.min(maxItems, 30);
+
+  if (!sheet || sheet.getLastRow() < EXEC_DATA_START_ROW) {
+    return { status: "ok", history: [] };
+  }
+
+  var values = sheet.getRange(EXEC_DATA_START_ROW, 1, sheet.getLastRow() - EXEC_DATA_START_ROW + 1, 17).getValues();
+
+  for (i = values.length - 1; i >= 0; i -= 1) {
+    var row = values[i];
+    var rowProfessional = clean_(row[6]);
+    if (targetProfessional && normalizeName_(rowProfessional) !== targetProfessional) {
+      continue;
+    }
+
+    var formId = clean_(row[16]);
+    if (!formId) {
+      continue;
+    }
+
+    if (!grouped[formId]) {
+      grouped[formId] = {
+        formId: formId,
+        professional: rowProfessional,
+        dateBr: clean_(row[13]),
+        submittedAtBr: clean_(row[15]),
+        projects: []
+      };
+      order.push(formId);
+    }
+
+    grouped[formId].projects.unshift({
+      projectCode: clean_(row[1]),
+      projectName: clean_(row[0]),
+      refEap: clean_(row[5]),
+      taskText: clean_(row[3]),
+      statusText: clean_(row[8])
+    });
+  }
+
+  for (i = 0; i < order.length && history.length < maxItems; i += 1) {
+    history.push(grouped[order[i]]);
+  }
+
+  return {
+    status: "ok",
+    history: history
   };
 }
 
@@ -1781,7 +1982,6 @@ function resetBancoDoZeroEapPadrao() {
 }
 
 function sincronizarControleComExecucaoHistorica() {
-  var context = prepareControlContext_();
   var executionSheet = getExecutionSheet_();
   var lastRow = executionSheet.getLastRow();
 
@@ -1793,62 +1993,14 @@ function sincronizarControleComExecucaoHistorica() {
     };
   }
 
-  var values = executionSheet.getRange(EXEC_DATA_START_ROW, 1, lastRow - EXEC_DATA_START_ROW + 1, 17).getValues();
-  var rows = context.rows;
-  var updatedAtBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
-  var processed = 0;
-  var i;
-
-  for (i = 0; i < values.length; i += 1) {
-    var row = values[i];
-    var contractId = clean_(row[1]);
-    var projectName = clean_(row[0]);
-    var phase = clean_(row[2]);
-    var taskText = clean_(row[3]);
-
-    if (!contractId || !projectName || !phase || !taskText) {
-      continue;
-    }
-
-    var record = {
-      projectName: projectName,
-      contractId: contractId,
-      phase: phase,
-      taskText: taskText,
-      refEap: clean_(row[5]) || buildRefEap_(contractId, phase),
-      statusText: clean_(row[8]),
-      statusClass: classifyControlStatus_(clean_(row[8]), /^sim/i.test(clean_(row[10]))),
-      isBlocked: /^sim/i.test(clean_(row[10])),
-      blockReason: clean_(row[11]),
-      observation: clean_(row[14]),
-      responsible: clean_(row[6]),
-      sectionName: ""
-    };
-
-    var meta = {
-      dateBr: clean_(row[13]) || updatedAtBr,
-      professional: clean_(row[6]),
-      formId: clean_(row[16]),
-      updatedAtBr: updatedAtBr
-    };
-
-    var rowIndex = findControlRowIndexForRecord_(rows, record);
-    if (rowIndex < 0) {
-      rows.push(createAdHocControlRow_(record, meta));
-      rowIndex = rows.length - 1;
-    }
-
-    updateControlRowFromRecord_(rows[rowIndex], record, meta);
-    processed += 1;
-  }
-
-  writeControlRows_(context.sheet, rows);
+  var controlRows = rebuildControlFromExecution_(executionSheet);
+  var processed = lastRow - EXEC_DATA_START_ROW + 1;
 
   return {
     status: "ok",
     message: "Sincronizacao concluida.",
     rowsProcessed: processed,
-    controlRows: rows.length
+    controlRows: controlRows.length
   };
 }
 
