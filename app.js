@@ -10,6 +10,7 @@
   var projectSectionsEl = document.getElementById("project-sections");
   var feedbackEl = document.getElementById("feedback");
   var portfolioFilterEl = document.getElementById("portfolio-filter");
+  var portfolioCutoffEl = document.getElementById("portfolio-cutoff");
   var portfolioRefreshEl = document.getElementById("portfolio-refresh");
   var portfolioSummaryEl = document.getElementById("portfolio-summary");
   var portfolioCardsEl = document.getElementById("portfolio-cards");
@@ -78,6 +79,83 @@
     { wbs: "10.2.1", phase: "Acompanhamento de Obra e Producao", task: "Realizacao de Acompanhamento de Producao (1 visita)" }
   ];
 
+  var LOCAL_EAP_NETWORK = {
+    "1.1.1": { du: 3, deps: [] },
+    "1.1.2": { du: 3, deps: [] },
+    "1.1.3": { du: 2, deps: [] },
+    "2.1.1": { du: 4, deps: ["1.1.1", "1.1.2", "1.1.3"] },
+    "2.1.2": { du: 3, deps: ["2.1.1"] },
+    "2.2.1": { du: 2, deps: ["2.1.2"] },
+    "2.2.2": { du: 1, deps: ["2.2.1"] },
+    "3.1.1": { du: 4, deps: ["2.2.2"] },
+    "3.1.2": { du: 2, deps: ["2.2.2"] },
+    "3.1.3": { du: 2, deps: ["2.2.2"] },
+    "3.2.1": { du: 2, deps: ["3.1.1", "3.1.2", "3.1.3"] },
+    "3.2.2": { du: 1, deps: ["3.2.1"] },
+    "4.1.1": { du: 5, deps: ["3.2.2"] },
+    "4.2.1": { du: 3, deps: ["4.1.1"] },
+    "4.2.2": { du: 1, deps: ["4.2.1"] },
+    "5.1.1": { du: 5, deps: ["3.2.2"] },
+    "5.1.2": { du: 3, deps: ["3.2.2"] },
+    "5.1.3": { du: 3, deps: ["3.2.2"] },
+    "5.2.1": { du: 2, deps: ["5.1.1", "5.1.2", "5.1.3"] },
+    "5.2.2": { du: 1, deps: ["5.2.1"] },
+    "6.1.1": { du: 3, deps: ["5.2.2"] },
+    "6.1.2": { du: 2, deps: ["5.2.2"] },
+    "6.1.3": { du: 2, deps: ["5.2.2"] },
+    "6.1.4": { du: 2, deps: ["5.2.2"] },
+    "7.1.1": { du: 5, deps: ["6.1.1", "6.1.2", "6.1.3", "6.1.4"] },
+    "7.2.1": { du: 3, deps: ["7.1.1"] },
+    "7.2.2": { du: 1, deps: ["7.2.1"] },
+    "8.1.1": { du: 2, deps: ["7.2.2"] },
+    "8.1.2": { du: 2, deps: ["7.2.2"] },
+    "8.1.3": { du: 2, deps: ["7.2.2"] },
+    "8.1.4": { du: 3, deps: ["7.2.2"] },
+    "8.1.5": { du: 3, deps: ["7.2.2"] },
+    "8.2.1": { du: 2, deps: ["7.2.2"] },
+    "8.2.2": { du: 2, deps: ["7.2.2"] },
+    "8.2.3": { du: 2, deps: ["7.2.2"] },
+    "8.2.4": { du: 2, deps: ["7.2.2"] },
+    "8.2.5": { du: 2, deps: ["7.2.2"] },
+    "8.3.1": { du: 2, deps: ["8.1.4"] },
+    "8.3.2": { du: 2, deps: ["8.1.5"] },
+    "8.3.3": { du: 3, deps: ["8.1.4", "8.1.5"] },
+    "8.3.4": { du: 2, deps: ["8.3.3"] },
+    "8.3.5": { du: 2, deps: ["8.2.2", "8.2.4"] },
+    "8.3.6": { du: 2, deps: ["8.3.3"] },
+    "9.1.1": { du: 2, deps: ["8.3.2"] },
+    "9.1.2": { du: 4, deps: ["7.2.2"] },
+    "9.1.3": { du: 2, deps: ["8.3.3"] },
+    "10.1.1": { du: 6, deps: ["8.1.2", "8.2.1", "8.2.2", "8.2.3", "8.2.4", "8.2.5"] },
+    "10.2.1": { du: 3, deps: ["10.1.1", "9.1.2"] }
+  };
+
+  var DEFAULT_SIGNATURE_DATE = "2025-12-12";
+  var PROJECT_SIGNATURE_DATE = Object.assign(
+    {
+      "CT-117": "2025-12-12",
+      "CT-119": "2025-12-16",
+      "CT-120": "2025-12-17",
+      "CT-121": "2025-12-18",
+      "CT-122": "2026-02-12",
+      "CT-123": "2025-01-08",
+      "CT-124": "2025-01-27",
+      "CT-125": "2025-02-12",
+      "CT-126": "2025-02-14",
+      "CT-127": "2025-03-12",
+      "CT-128": "2025-04-04",
+      "CT-129": "2025-04-15",
+      "CT-130": "2025-05-15",
+      "CT-131": "2025-05-15",
+      "CT-132": "2025-05-23",
+      "CT-133": "2025-09-02",
+      "CT-134": "2025-06-26",
+      "CT-135": "2025-06-04",
+      "CT-136": "2025-11-26"
+    },
+    cfg.datasAssinatura || {}
+  );
+
   init();
 
   function init() {
@@ -88,12 +166,16 @@
     populateProfessionals();
     populateProjects();
     setDefaultDate();
+    setDefaultPortfolioCutoffDate_();
     renderProjectSections([]);
 
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
     if (portfolioFilterEl) {
       portfolioFilterEl.addEventListener("change", renderPortfolioOverview);
+    }
+    if (portfolioCutoffEl) {
+      portfolioCutoffEl.addEventListener("change", renderPortfolioOverview);
     }
     if (portfolioRefreshEl) {
       portfolioRefreshEl.addEventListener("click", function () {
@@ -622,6 +704,7 @@
       return;
     }
 
+    portfolioDataset = buildPortfolioDataset_();
     var dataset = Array.isArray(portfolioDataset) ? portfolioDataset : [];
     var filtered = applyPortfolioFilter_(dataset);
 
@@ -648,6 +731,7 @@
 
   function buildPortfolioDataset_() {
     var data = [];
+    var cutoffDate = getCutoffDate_();
 
     projectList.forEach(function (project) {
       var code = cleanText(project.code);
@@ -656,21 +740,26 @@
       }
 
       var optionList = getRefOptionsForProject(code);
-      var totals = buildPortfolioCountsFromOptions_(code, optionList);
-      var nextTasks = buildPortfolioNextTasks_(optionList);
-      var blockedItems = buildPortfolioBlockedItems_(optionList);
+      var schedule = buildProjectSchedule_(code, optionList);
+      var metrics = buildPortfolioMetricsFromSchedule_(schedule, cutoffDate);
+      var nextTasks = buildPortfolioNextTasks_(schedule);
+      var blockedItems = buildPortfolioBlockedItems_(schedule);
 
       data.push({
         code: code,
         label: cleanText(project.label) || code,
-        total: totals.total,
-        concluida: totals.concluida,
-        emAndamento: totals.emAndamento,
-        bloqueada: totals.bloqueada,
-        naoIniciada: totals.naoIniciada,
-        pendentes: totals.pendentes,
-        percentual: totals.percentual,
-        semaforo: classifyPortfolioSemaforo_(totals),
+        total: metrics.total,
+        concluida: metrics.concluida,
+        emAndamento: metrics.emAndamento,
+        bloqueada: metrics.bloqueada,
+        naoIniciada: metrics.naoIniciada,
+        pendentes: metrics.pendentes,
+        percentual: metrics.percentual,
+        planejadasAteCorte: metrics.planejadasAteCorte,
+        realizadasAteCorte: metrics.realizadasAteCorte,
+        atrasadasAteCorte: metrics.atrasadasAteCorte,
+        adiantadasAteCorte: metrics.adiantadasAteCorte,
+        semaforo: classifyPortfolioSemaforo_(metrics),
         nextTasks: nextTasks,
         blockedItems: blockedItems
       });
@@ -682,47 +771,135 @@
     return data;
   }
 
-  function buildPortfolioCountsFromOptions_(projectCode, optionList) {
-    var total = expectedTotalTasks_(projectCode);
-    var emAndamento = 0;
-    var bloqueada = 0;
-    var naoIniciada = 0;
-    var i;
+  function getCutoffDate_() {
+    if (portfolioCutoffEl && cleanText(portfolioCutoffEl.value)) {
+      var fromInput = parseIsoDate_(portfolioCutoffEl.value);
+      if (fromInput) {
+        return fromInput;
+      }
+    }
+    var now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }
 
-    for (i = 0; i < optionList.length; i += 1) {
-      var status = normalizePortfolioStatus_(optionList[i] && optionList[i].status);
-      if (status === "BLOQUEADA") {
-        bloqueada += 1;
-      } else if (status === "EM ANDAMENTO") {
-        emAndamento += 1;
-      } else {
-        naoIniciada += 1;
+  function buildProjectSchedule_(projectCode, optionList) {
+    var signatureDate = parseIsoDate_(PROJECT_SIGNATURE_DATE[projectCode] || DEFAULT_SIGNATURE_DATE);
+    var statusByRef = buildStatusMapFromOptions_(optionList);
+    var scheduleByWbs = {};
+    var tasks = [];
+
+    LOCAL_EAP_TEMPLATE.forEach(function (item) {
+      var rule = LOCAL_EAP_NETWORK[item.wbs] || { du: 1, deps: [] };
+      var refEap = buildRefFromWbsForFront_(projectCode, item.wbs);
+      var status = statusByRef[refEap] || "CONCLUIDA";
+      var dates = planTaskDates_(signatureDate, rule, scheduleByWbs);
+
+      var task = {
+        refEap: refEap,
+        wbs: item.wbs,
+        phase: item.phase,
+        task: item.task,
+        status: status,
+        plannedStart: dates.start,
+        plannedEnd: dates.end
+      };
+
+      scheduleByWbs[item.wbs] = task;
+      tasks.push(task);
+    });
+
+    return tasks;
+  }
+
+  function buildStatusMapFromOptions_(optionList) {
+    var map = {};
+    (optionList || []).forEach(function (item) {
+      var key = cleanText(item && item.value);
+      if (!key) {
+        return;
+      }
+      map[key] = normalizePortfolioStatus_(item && item.status);
+    });
+    return map;
+  }
+
+  function buildRefFromWbsForFront_(projectCode, wbs) {
+    var compact = String(projectCode || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    var key = String(wbs || "").replace(/[^A-Za-z0-9]+/g, "_");
+    return compact + "-WBS-" + key;
+  }
+
+  function planTaskDates_(projectStartDate, rule, scheduleByWbs) {
+    var deps = Array.isArray(rule.deps) ? rule.deps : [];
+    var duration = Math.max(Number(rule.du || 1), 1);
+    var start = cloneDate_(projectStartDate);
+
+    if (deps.length) {
+      var maxPredEnd = null;
+      deps.forEach(function (depWbs) {
+        var depTask = scheduleByWbs[depWbs];
+        if (!depTask || !depTask.plannedEnd) {
+          return;
+        }
+        if (!maxPredEnd || depTask.plannedEnd.getTime() > maxPredEnd.getTime()) {
+          maxPredEnd = depTask.plannedEnd;
+        }
+      });
+      if (maxPredEnd) {
+        start = nextBusinessDay_(addDays_(maxPredEnd, 1));
       }
     }
 
-    var pendentes = emAndamento + bloqueada + naoIniciada;
-    var concluida = Math.max(total - pendentes, 0);
-    var percentual = total > 0 ? Math.round((concluida / total) * 100) : 0;
-
-    return {
-      total: total,
-      concluida: concluida,
-      emAndamento: emAndamento,
-      bloqueada: bloqueada,
-      naoIniciada: naoIniciada,
-      pendentes: pendentes,
-      percentual: percentual
-    };
+    start = nextBusinessDay_(start);
+    var end = addBusinessDays_(start, duration - 1);
+    return { start: start, end: end };
   }
 
-  function expectedTotalTasks_(projectCode) {
-    if (projectCode === "ADMIN-INTERNO") {
-      return 1;
-    }
-    if (/^CT-\d+$/i.test(projectCode)) {
-      return LOCAL_EAP_TEMPLATE.length;
-    }
-    return Math.max(getRefOptionsForProject(projectCode).length, 1);
+  function buildPortfolioMetricsFromSchedule_(schedule, cutoffDate) {
+    var metrics = {
+      total: schedule.length,
+      concluida: 0,
+      emAndamento: 0,
+      bloqueada: 0,
+      naoIniciada: 0,
+      pendentes: 0,
+      percentual: 0,
+      planejadasAteCorte: 0,
+      realizadasAteCorte: 0,
+      atrasadasAteCorte: 0,
+      adiantadasAteCorte: 0
+    };
+
+    schedule.forEach(function (task) {
+      var status = task.status;
+      var isPlannedByCutoff = task.plannedEnd && task.plannedEnd.getTime() <= cutoffDate.getTime();
+
+      if (status === "CONCLUIDA") {
+        metrics.concluida += 1;
+      } else if (status === "EM ANDAMENTO") {
+        metrics.emAndamento += 1;
+      } else if (status === "BLOQUEADA") {
+        metrics.bloqueada += 1;
+      } else {
+        metrics.naoIniciada += 1;
+      }
+
+      if (isPlannedByCutoff) {
+        metrics.planejadasAteCorte += 1;
+        if (status === "CONCLUIDA") {
+          metrics.realizadasAteCorte += 1;
+        } else {
+          metrics.atrasadasAteCorte += 1;
+        }
+      } else if (status === "CONCLUIDA") {
+        metrics.adiantadasAteCorte += 1;
+      }
+    });
+
+    metrics.pendentes = metrics.total - metrics.concluida;
+    metrics.percentual = metrics.total > 0 ? Math.round((metrics.concluida / metrics.total) * 100) : 0;
+    return metrics;
   }
 
   function normalizePortfolioStatus_(value) {
@@ -739,45 +916,55 @@
     return "NAO INICIADA";
   }
 
-  function classifyPortfolioSemaforo_(totals) {
-    if (totals.bloqueada > 0) {
+  function classifyPortfolioSemaforo_(metrics) {
+    if (metrics.bloqueada > 0 && metrics.atrasadasAteCorte > 0) {
       return "red";
     }
-    if (totals.percentual >= 85) {
-      return "green";
+    if (metrics.atrasadasAteCorte > 3) {
+      return "red";
     }
-    return "yellow";
+    if (metrics.atrasadasAteCorte > 0 || metrics.bloqueada > 0) {
+      return "yellow";
+    }
+    return "green";
   }
 
-  function buildPortfolioNextTasks_(optionList) {
-    return optionList
-      .map(function (item) {
-        var parsed = parseRefOptionLabel(cleanText(item && item.label));
-        var status = normalizePortfolioStatus_(item && item.status);
-        return {
-          refEap: parsed.refEap,
-          task: parsed.task || parsed.phase || parsed.refEap,
-          status: status
-        };
+  function buildPortfolioNextTasks_(schedule) {
+    return schedule
+      .filter(function (task) {
+        return task.status !== "CONCLUIDA";
       })
       .sort(function (a, b) {
-        return portfolioTaskPriority_(a.status) - portfolioTaskPriority_(b.status);
+        var byStatus = portfolioTaskPriority_(a.status) - portfolioTaskPriority_(b.status);
+        if (byStatus !== 0) {
+          return byStatus;
+        }
+        if (a.plannedEnd && b.plannedEnd) {
+          return a.plannedEnd.getTime() - b.plannedEnd.getTime();
+        }
+        return String(a.refEap).localeCompare(String(b.refEap));
       })
-      .slice(0, 3);
+      .slice(0, 3)
+      .map(function (task) {
+        return {
+          refEap: task.refEap,
+          task: task.task,
+          status: task.status
+        };
+      });
   }
 
-  function buildPortfolioBlockedItems_(optionList) {
-    return optionList
-      .map(function (item) {
-        var parsed = parseRefOptionLabel(cleanText(item && item.label));
-        return {
-          refEap: parsed.refEap,
-          task: parsed.task || parsed.phase || parsed.refEap,
-          status: normalizePortfolioStatus_(item && item.status)
-        };
+  function buildPortfolioBlockedItems_(schedule) {
+    return schedule
+      .filter(function (task) {
+        return task.status === "BLOQUEADA";
       })
-      .filter(function (item) {
-        return item.status === "BLOQUEADA";
+      .map(function (task) {
+        return {
+          refEap: task.refEap,
+          task: task.task,
+          status: task.status
+        };
       });
   }
 
@@ -800,12 +987,16 @@
       return;
     }
 
+    var cutoffDate = getCutoffDate_();
     var totais = {
       projetos: items.length,
       verde: 0,
       amarelo: 0,
       vermelho: 0,
-      bloqueios: 0
+      bloqueios: 0,
+      planejadas: 0,
+      realizadas: 0,
+      atrasadas: 0
     };
 
     items.forEach(function (item) {
@@ -817,14 +1008,21 @@
         totais.vermelho += 1;
       }
       totais.bloqueios += item.bloqueada;
+      totais.planejadas += item.planejadasAteCorte;
+      totais.realizadas += item.realizadasAteCorte;
+      totais.atrasadas += item.atrasadasAteCorte;
     });
 
     portfolioSummaryEl.innerHTML = [
-      buildPortfolioStat_("Projetos", totais.projetos),
+      buildPortfolioStat_("Corte", formatDateBr_(cutoffDate)),
       buildPortfolioStat_("Semaforo Verde", totais.verde),
       buildPortfolioStat_("Semaforo Amarelo", totais.amarelo),
       buildPortfolioStat_("Semaforo Vermelho", totais.vermelho),
-      buildPortfolioStat_("Bloqueios", totais.bloqueios)
+      buildPortfolioStat_("Planejado ate corte", totais.planejadas),
+      buildPortfolioStat_("Realizado ate corte*", totais.realizadas),
+      buildPortfolioStat_("Atrasadas", totais.atrasadas),
+      buildPortfolioStat_("Bloqueios", totais.bloqueios),
+      buildPortfolioStat_("Projetos", totais.projetos)
     ].join("");
   }
 
@@ -846,6 +1044,10 @@
 
     portfolioCardsEl.innerHTML = items
       .map(function (item) {
+        var aderencia =
+          item.planejadasAteCorte > 0
+            ? Math.round((item.realizadasAteCorte / item.planejadasAteCorte) * 100)
+            : 100;
         var nextTasks = item.nextTasks.length
           ? "<ul>" +
             item.nextTasks
@@ -871,6 +1073,10 @@
           '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.emAndamento)) + '</strong><span>Em andamento</span></div>',
           '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.bloqueada)) + '</strong><span>Bloqueadas</span></div>',
           '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.naoIniciada)) + '</strong><span>Nao iniciadas</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.realizadasAteCorte)) + "/" + escapeHtml(String(item.planejadasAteCorte)) + '</strong><span>Real x Plan ate corte</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.atrasadasAteCorte)) + '</strong><span>Atrasadas no corte</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(item.adiantadasAteCorte)) + '</strong><span>Adiantadas no corte</span></div>',
+          '<div class="portfolio-metric"><strong>' + escapeHtml(String(Math.max(0, Math.min(150, aderencia)))) + '%</strong><span>Aderencia no corte</span></div>',
           "</div>",
           '<div class="portfolio-next"><h4>Proximo foco</h4>' + nextTasks + "</div>",
           "</article>"
@@ -1232,10 +1438,86 @@
     return normalized;
   }
 
+  function parseIsoDate_(value) {
+    var text = cleanText(value);
+    var match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return null;
+    }
+    var year = Number(match[1]);
+    var month = Number(match[2]) - 1;
+    var day = Number(match[3]);
+    var date = new Date(year, month, day);
+    date.setHours(0, 0, 0, 0);
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    return date;
+  }
+
+  function cloneDate_(date) {
+    var base = date instanceof Date ? date : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  }
+
+  function addDays_(date, days) {
+    var next = cloneDate_(date);
+    next.setDate(next.getDate() + Number(days || 0));
+    return next;
+  }
+
+  function isBusinessDay_(date) {
+    var day = date.getDay();
+    return day !== 0 && day !== 6;
+  }
+
+  function nextBusinessDay_(date) {
+    var cursor = cloneDate_(date);
+    while (!isBusinessDay_(cursor)) {
+      cursor = addDays_(cursor, 1);
+    }
+    return cursor;
+  }
+
+  function addBusinessDays_(date, businessDays) {
+    var total = Math.max(Number(businessDays || 0), 0);
+    var cursor = nextBusinessDay_(date);
+    var count = 0;
+    while (count < total) {
+      cursor = addDays_(cursor, 1);
+      if (isBusinessDay_(cursor)) {
+        count += 1;
+      }
+    }
+    return cursor;
+  }
+
+  function formatDateBr_(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      return "";
+    }
+    var dd = String(date.getDate()).padStart(2, "0");
+    var mm = String(date.getMonth() + 1).padStart(2, "0");
+    var yyyy = String(date.getFullYear());
+    return dd + "/" + mm + "/" + yyyy;
+  }
+
   function setDefaultDate() {
     var now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     dateEl.value = now.toISOString().slice(0, 10);
+  }
+
+  function setDefaultPortfolioCutoffDate_() {
+    if (!portfolioCutoffEl) {
+      return;
+    }
+    if (cleanText(portfolioCutoffEl.value)) {
+      return;
+    }
+    var now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    portfolioCutoffEl.value = now.toISOString().slice(0, 10);
   }
 
   function showFeedback(type, message) {

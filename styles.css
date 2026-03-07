@@ -263,6 +263,7 @@ h1 {
 
 .portfolio-tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   margin-bottom: 12px;
@@ -283,10 +284,16 @@ h1 {
   background: #f7fafc;
 }
 
+.portfolio-tools input[type="date"] {
+  max-width: 180px;
+  font-size: 13px;
+  background: #f7fafc;
+}
+
 .portfolio-summary {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin-bottom: 12px;
 }
 
@@ -773,6 +780,10 @@ button:disabled {
   }
 
   .portfolio-tools select {
+    max-width: none;
+  }
+
+  .portfolio-tools input[type="date"] {
     max-width: none;
   }
 

@@ -117,7 +117,7 @@
             <p class="portfolio-kicker">Painel de Portfolio</p>
             <h2>Status visual dos projetos</h2>
             <p class="portfolio-subtitle">
-              Visao rapida de andamento, bloqueios e proximo foco. Atualiza com os dados mais recentes do formulario.
+              Visao rapida de andamento, bloqueios e proximo foco. Data de corte aplica o planejado; realizado usa o status atual da tarefa.
             </p>
           </div>
           <button id="portfolio-refresh" class="portfolio-refresh" type="button">Atualizar painel</button>
@@ -129,6 +129,8 @@
             <option value="all">Todos os projetos</option>
             <option value="selected">Somente projetos marcados hoje</option>
           </select>
+          <label for="portfolio-cutoff">Data de corte</label>
+          <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
         </div>
 
         <section id="portfolio-summary" class="portfolio-summary"></section>
@@ -183,7 +185,7 @@
       <section id="daily-summary" class="daily-summary hidden" aria-live="polite"></section>
     </main>
 
-    <script src="./config.js?v=20260307c"></script>
-    <script src="./app.js?v=20260307c"></script>
+    <script src="./config.js?v=20260307d"></script>
+    <script src="./app.js?v=20260307d"></script>
   </body>
 </html>
