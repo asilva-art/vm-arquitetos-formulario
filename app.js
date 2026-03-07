@@ -9,6 +9,8 @@
   var projectListEl = document.getElementById("project-list");
   var projectSectionsEl = document.getElementById("project-sections");
   var feedbackEl = document.getElementById("feedback");
+  var guideToggleEl = document.getElementById("guide-toggle");
+  var guideStepsEl = document.getElementById("guide-steps");
   var summaryToggleEl = document.getElementById("summary-toggle");
   var dailySummaryEl = document.getElementById("daily-summary");
   var submitButtonEl = document.getElementById("submit-button");
@@ -84,12 +86,25 @@
 
     projectListEl.addEventListener("change", handleProjectSelectionChange);
     formEl.addEventListener("submit", handleSubmit);
+    if (guideToggleEl && guideStepsEl) {
+      guideToggleEl.addEventListener("click", handleGuideToggle);
+    }
     if (summaryToggleEl) {
       summaryToggleEl.addEventListener("click", handleSummaryToggle);
     }
 
     loadRefOptionsFromServer();
     clearSummaryUI();
+  }
+
+  function handleGuideToggle() {
+    if (!guideToggleEl || !guideStepsEl) {
+      return;
+    }
+
+    var isHidden = guideStepsEl.classList.toggle("hidden");
+    guideToggleEl.setAttribute("aria-expanded", String(!isHidden));
+    guideToggleEl.textContent = isHidden ? "Expandir explicacoes" : "Recolher explicacoes";
   }
 
   function populateProfessionals() {
