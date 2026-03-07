@@ -176,6 +176,11 @@ function doGet(e) {
     return jsonOrJsonp_(response, callback);
   }
 
+  if (action === "ppm_snapshot") {
+    response = buildPpmSnapshotPayload_();
+    return jsonOrJsonp_(response, callback);
+  }
+
   if (action === "resumo_controle") {
     response = resumoControleEapAtual();
     return jsonOrJsonp_(response, callback);
@@ -1428,6 +1433,111 @@ function buildConfigPayload_() {
     statuses: STATUS_CONTROL,
     refOptions: buildRefOptionsByProject_()
   };
+}
+
+function buildPpmSnapshotPayload_() {
+  var sheet = getOrCreateControlSheet_();
+  var rows = readControlRows_(sheet);
+  var byContract = {};
+  var order = [];
+  var i;
+
+  for (i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var contractId = clean_(row[2]);
+    var refEap = clean_(row[3]);
+
+    if (!contractId || !refEap || contractId === "ADMIN-INTERNO") {
+      continue;
+    }
+
+    if (!byContract[contractId]) {
+      byContract[contractId] = {
+        contractId: contractId,
+        projectName: clean_(row[1]) || contractId,
+        tasks: [],
+        totals: {
+          total: 0,
+          naoIniciada: 0,
+          emAndamento: 0,
+          concluida: 0,
+          bloqueada: 0
+        }
+      };
+      order.push(contractId);
+    }
+
+    var status = normalizeControlStatus_(row[9]);
+    var task = {
+      refEap: refEap,
+      phase: clean_(row[4]),
+      task: clean_(row[5]),
+      status: status,
+      plannedStart: toIsoDateOrBlank_(row[7]),
+      plannedEnd: toIsoDateOrBlank_(row[8]),
+      realStart: toIsoDateOrBlank_(row[11]),
+      realEnd: toIsoDateOrBlank_(row[12]),
+      lastRecordDate: toIsoDateOrBlank_(row[18]),
+      updatedAt: toIsoDateOrBlank_(row[17]),
+      blocked: /^sim/i.test(clean_(row[15])),
+      blockReason: clean_(row[16]),
+      percentReal: toNumberOrBlank_(row[13], "")
+    };
+
+    byContract[contractId].tasks.push(task);
+    byContract[contractId].totals.total += 1;
+
+    if (status === STATUS_CONTROL.CONCLUIDA) {
+      byContract[contractId].totals.concluida += 1;
+    } else if (status === STATUS_CONTROL.EM_ANDAMENTO) {
+      byContract[contractId].totals.emAndamento += 1;
+    } else if (status === STATUS_CONTROL.BLOQUEADA) {
+      byContract[contractId].totals.bloqueada += 1;
+    } else {
+      byContract[contractId].totals.naoIniciada += 1;
+    }
+  }
+
+  var projects = [];
+  for (i = 0; i < order.length; i += 1) {
+    var contractKey = order[i];
+    byContract[contractKey].tasks.sort(function (a, b) {
+      return String(a.refEap).localeCompare(String(b.refEap));
+    });
+    projects.push(byContract[contractKey]);
+  }
+
+  projects.sort(function (a, b) {
+    return compareContractId_(a.contractId, b.contractId);
+  });
+
+  return {
+    status: "ok",
+    generatedAt: Utilities.formatDate(new Date(), getTz_(), "yyyy-MM-dd'T'HH:mm:ss"),
+    projects: projects
+  };
+}
+
+function normalizeControlStatus_(value) {
+  var text = normalizeText_(value);
+  if (text.indexOf("conclu") >= 0) {
+    return STATUS_CONTROL.CONCLUIDA;
+  }
+  if (text.indexOf("andamento") >= 0 || text.indexOf("continua") >= 0) {
+    return STATUS_CONTROL.EM_ANDAMENTO;
+  }
+  if (text.indexOf("bloque") >= 0 || text.indexOf("paus") >= 0 || text.indexOf("aguard") >= 0) {
+    return STATUS_CONTROL.BLOQUEADA;
+  }
+  return STATUS_CONTROL.NAO_INICIADA;
+}
+
+function toIsoDateOrBlank_(value) {
+  var parsed = parseDate_(value);
+  if (!parsed) {
+    return "";
+  }
+  return Utilities.formatDate(parsed, getTz_(), "yyyy-MM-dd");
 }
 
 function buildRefOptionsByProject_() {

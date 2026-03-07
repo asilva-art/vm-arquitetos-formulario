@@ -22,6 +22,7 @@
   var submitButtonEl = document.getElementById("submit-button");
   var lastSubmittedSummary = null;
   var portfolioDataset = [];
+  var ppmSnapshotMap = {};
 
   var projectMap = {};
   var projectList = [];
@@ -180,6 +181,7 @@
     if (portfolioRefreshEl) {
       portfolioRefreshEl.addEventListener("click", function () {
         loadRefOptionsFromServer();
+        loadPpmSnapshotFromServer();
       });
     }
     if (guideToggleEl && guideStepsEl) {
@@ -190,6 +192,7 @@
     }
 
     loadRefOptionsFromServer();
+    loadPpmSnapshotFromServer();
     portfolioDataset = buildPortfolioDataset_();
     renderPortfolioOverview();
     clearSummaryUI();
@@ -576,6 +579,7 @@
           setSummaryForSubmission(result.data.dailySummary || buildFallbackDailySummary(payload));
           resetForm();
           loadRefOptionsFromServer();
+          loadPpmSnapshotFromServer();
           return;
         }
 
@@ -590,6 +594,7 @@
         );
         resetForm();
         loadRefOptionsFromServer();
+        loadPpmSnapshotFromServer();
       })
       .catch(function (err) {
         showFeedback("error", err.message || "Nao foi possivel enviar. Tente novamente.");
@@ -699,6 +704,90 @@
     setTimeout(finish, 12000);
   }
 
+  function loadPpmSnapshotFromServer() {
+    var appsScriptUrl = cleanText(cfg.appsScriptUrl);
+    if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
+      return;
+    }
+
+    var callbackName = "vmPpmCb_" + String(Date.now());
+    var script = document.createElement("script");
+    var settled = false;
+
+    function finish() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      try {
+        delete window[callbackName];
+      } catch (err) {
+        window[callbackName] = undefined;
+      }
+      if (script && script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function (data) {
+      try {
+        if (data && data.status === "ok") {
+          ppmSnapshotMap = normalizePpmSnapshot_(data);
+          renderPortfolioOverview();
+        }
+      } finally {
+        finish();
+      }
+    };
+
+    script.async = true;
+    script.src = buildUrlWithParams(appsScriptUrl, {
+      action: "ppm_snapshot",
+      callback: callbackName,
+      _: Date.now()
+    });
+    script.onerror = finish;
+    document.body.appendChild(script);
+    setTimeout(finish, 12000);
+  }
+
+  function normalizePpmSnapshot_(payload) {
+    var map = {};
+    var projects = (payload && Array.isArray(payload.projects)) ? payload.projects : [];
+
+    projects.forEach(function (project) {
+      var contractId = cleanText(project && (project.contractId || project.projectCode));
+      if (!contractId) {
+        return;
+      }
+
+      var tasks = Array.isArray(project.tasks) ? project.tasks : [];
+      map[contractId] = {
+        contractId: contractId,
+        projectName: cleanText(project.projectName),
+        totals: project.totals || {},
+        tasks: tasks.map(function (task) {
+          return {
+            refEap: cleanText(task && task.refEap),
+            phase: cleanText(task && task.phase),
+            task: cleanText(task && task.task),
+            status: normalizePortfolioStatus_(task && task.status),
+            plannedStart: parseDateFlexible_(task && task.plannedStart),
+            plannedEnd: parseDateFlexible_(task && task.plannedEnd),
+            realStart: parseDateFlexible_(task && task.realStart),
+            realEnd: parseDateFlexible_(task && task.realEnd),
+            lastRecordDate: parseDateFlexible_(task && task.lastRecordDate),
+            updatedAt: parseDateFlexible_(task && task.updatedAt),
+            blocked: !!(task && task.blocked),
+            blockReason: cleanText(task && task.blockReason)
+          };
+        })
+      };
+    });
+
+    return map;
+  }
+
   function renderPortfolioOverview() {
     if (!portfolioSummaryEl || !portfolioCardsEl || !portfolioBlocksEl) {
       return;
@@ -740,7 +829,8 @@
       }
 
       var optionList = getRefOptionsForProject(code);
-      var schedule = buildProjectSchedule_(code, optionList);
+      var snapshotProject = ppmSnapshotMap[code] || null;
+      var schedule = buildProjectSchedule_(code, optionList, snapshotProject);
       var metrics = buildPortfolioMetricsFromSchedule_(schedule, cutoffDate);
       var nextTasks = buildPortfolioNextTasks_(schedule);
       var blockedItems = buildPortfolioBlockedItems_(schedule);
@@ -783,7 +873,12 @@
     return now;
   }
 
-  function buildProjectSchedule_(projectCode, optionList) {
+  function buildProjectSchedule_(projectCode, optionList, snapshotProject) {
+    var snapshotTasks = snapshotProject && Array.isArray(snapshotProject.tasks) ? snapshotProject.tasks : [];
+    if (snapshotTasks.length) {
+      return buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks);
+    }
+
     var signatureDate = parseIsoDate_(PROJECT_SIGNATURE_DATE[projectCode] || DEFAULT_SIGNATURE_DATE);
     var statusByRef = buildStatusMapFromOptions_(optionList);
     var scheduleByWbs = {};
@@ -824,10 +919,97 @@
     return map;
   }
 
+  function buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks) {
+    var signatureDate = parseIsoDate_(PROJECT_SIGNATURE_DATE[projectCode] || DEFAULT_SIGNATURE_DATE);
+    var scheduleByWbs = {};
+    var taskByRef = {};
+    var tasks = [];
+
+    LOCAL_EAP_TEMPLATE.forEach(function (item) {
+      var rule = LOCAL_EAP_NETWORK[item.wbs] || { du: 1, deps: [] };
+      var refEap = buildRefFromWbsForFront_(projectCode, item.wbs);
+      var dates = planTaskDates_(signatureDate, rule, scheduleByWbs);
+
+      var task = {
+        refEap: refEap,
+        wbs: item.wbs,
+        phase: item.phase,
+        task: item.task,
+        status: "NAO INICIADA",
+        plannedStart: dates.start,
+        plannedEnd: dates.end,
+        realStart: null,
+        realEnd: null,
+        lastRecordDate: null,
+        updatedAt: null,
+        blocked: false,
+        blockReason: ""
+      };
+
+      scheduleByWbs[item.wbs] = task;
+      taskByRef[refEap] = task;
+      tasks.push(task);
+    });
+
+    snapshotTasks.forEach(function (snapshotTask) {
+      var refEap = cleanText(snapshotTask && snapshotTask.refEap);
+      if (!refEap) {
+        return;
+      }
+
+      var target = taskByRef[refEap];
+      if (!target) {
+        target = {
+          refEap: refEap,
+          wbs: extractWbsFromRef_(refEap),
+          phase: "",
+          task: "",
+          status: "NAO INICIADA",
+          plannedStart: null,
+          plannedEnd: null,
+          realStart: null,
+          realEnd: null,
+          lastRecordDate: null,
+          updatedAt: null,
+          blocked: false,
+          blockReason: ""
+        };
+        taskByRef[refEap] = target;
+        tasks.push(target);
+      }
+
+      target.phase = cleanText(snapshotTask.phase) || target.phase;
+      target.task = cleanText(snapshotTask.task) || target.task;
+      target.status = normalizePortfolioStatus_(snapshotTask.status);
+      target.plannedStart = parseDateFlexible_(snapshotTask.plannedStart) || target.plannedStart;
+      target.plannedEnd = parseDateFlexible_(snapshotTask.plannedEnd) || target.plannedEnd;
+      target.realStart = parseDateFlexible_(snapshotTask.realStart);
+      target.realEnd = parseDateFlexible_(snapshotTask.realEnd);
+      target.lastRecordDate = parseDateFlexible_(snapshotTask.lastRecordDate);
+      target.updatedAt = parseDateFlexible_(snapshotTask.updatedAt);
+      target.blocked = Boolean(snapshotTask && snapshotTask.blocked);
+      target.blockReason = cleanText(snapshotTask && snapshotTask.blockReason);
+    });
+
+    tasks.sort(function (a, b) {
+      return String(a.refEap).localeCompare(String(b.refEap));
+    });
+    return tasks;
+  }
+
   function buildRefFromWbsForFront_(projectCode, wbs) {
     var compact = String(projectCode || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     var key = String(wbs || "").replace(/[^A-Za-z0-9]+/g, "_");
     return compact + "-WBS-" + key;
+  }
+
+  function extractWbsFromRef_(refEap) {
+    var text = cleanText(refEap);
+    var match = text.match(/-WBS-([0-9_]+)/i);
+    if (!match) {
+      return "";
+    }
+    return String(match[1]).replace(/_/g, ".");
   }
 
   function planTaskDates_(projectStartDate, rule, scheduleByWbs) {
@@ -873,7 +1055,9 @@
 
     schedule.forEach(function (task) {
       var status = task.status;
-      var isPlannedByCutoff = task.plannedEnd && task.plannedEnd.getTime() <= cutoffDate.getTime();
+      var isPlannedByCutoff =
+        task.plannedEnd instanceof Date && task.plannedEnd.getTime() <= cutoffDate.getTime();
+      var isRealizedByCutoff = isTaskRealizedByCutoff_(task, cutoffDate);
 
       if (status === "CONCLUIDA") {
         metrics.concluida += 1;
@@ -887,12 +1071,12 @@
 
       if (isPlannedByCutoff) {
         metrics.planejadasAteCorte += 1;
-        if (status === "CONCLUIDA") {
+        if (isRealizedByCutoff) {
           metrics.realizadasAteCorte += 1;
         } else {
           metrics.atrasadasAteCorte += 1;
         }
-      } else if (status === "CONCLUIDA") {
+      } else if (isRealizedByCutoff) {
         metrics.adiantadasAteCorte += 1;
       }
     });
@@ -900,6 +1084,24 @@
     metrics.pendentes = metrics.total - metrics.concluida;
     metrics.percentual = metrics.total > 0 ? Math.round((metrics.concluida / metrics.total) * 100) : 0;
     return metrics;
+  }
+
+  function isTaskRealizedByCutoff_(task, cutoffDate) {
+    if (!task || task.status !== "CONCLUIDA") {
+      return false;
+    }
+
+    var dates = [task.realEnd, task.lastRecordDate, task.updatedAt, task.realStart];
+    var i;
+    for (i = 0; i < dates.length; i += 1) {
+      var date = parseDateFlexible_(dates[i]);
+      if (date) {
+        return date.getTime() <= cutoffDate.getTime();
+      }
+    }
+
+    // Fallback para tarefas concluidas sem data real preenchida.
+    return true;
   }
 
   function normalizePortfolioStatus_(value) {
@@ -963,7 +1165,8 @@
         return {
           refEap: task.refEap,
           task: task.task,
-          status: task.status
+          status: task.status,
+          blockReason: cleanText(task.blockReason)
         };
       });
   }
@@ -1092,7 +1295,8 @@
         blocks.push({
           project: item.label,
           refEap: block.refEap,
-          task: block.task
+          task: block.task,
+          blockReason: block.blockReason
         });
       });
     });
@@ -1105,11 +1309,15 @@
     portfolioBlocksEl.innerHTML = blocks
       .slice(0, 12)
       .map(function (block) {
+        var details = cleanText(block.refEap) + " - " + cleanText(block.task);
+        if (cleanText(block.blockReason)) {
+          details += " | " + cleanText(block.blockReason);
+        }
         return (
           '<article class="portfolio-block-item"><strong>' +
           escapeHtml(block.project) +
           "</strong><p>" +
-          escapeHtml(block.refEap + " - " + block.task) +
+          escapeHtml(details) +
           "</p></article>"
         );
       })
@@ -1453,6 +1661,36 @@
       return null;
     }
     return date;
+  }
+
+  function parseDateFlexible_(value) {
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      var fromDate = cloneDate_(value);
+      fromDate.setHours(0, 0, 0, 0);
+      return fromDate;
+    }
+
+    var text = cleanText(value);
+    if (!text) {
+      return null;
+    }
+
+    var iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+      return parseIsoDate_(iso[1] + "-" + iso[2] + "-" + iso[3]);
+    }
+
+    var br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (br) {
+      return parseIsoDate_(br[3] + "-" + br[2] + "-" + br[1]);
+    }
+
+    var parsed = new Date(text);
+    if (isNaN(parsed.getTime())) {
+      return null;
+    }
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
   }
 
   function cloneDate_(date) {

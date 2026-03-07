@@ -7,6 +7,7 @@
 - Sincroniza automaticamente o controle a cada envio diario.
 - Exige `REF EAP` por secao do formulario (rastreabilidade fina).
 - Expõe `action=config` com opcoes de `REF EAP` por projeto para o frontend.
+- Expõe `action=ppm_snapshot` com status por tarefa e datas (planejado/real) da `📌 CONTROLE_EAP_ATUAL`.
 - Le contratos automaticamente da aba `CONTRATOS` (IDs `CT-...`) para montar os projetos ativos.
 - Retorna `dailySummary` no `doPost` para exibir resumo objetivo ao usuario (feito no dia + pendencias + proximo foco).
 - Mantem bloqueio de duplicata: maximo 1 envio por profissional por dia.
