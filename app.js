@@ -2724,8 +2724,8 @@
     coordState.open = true;
     coordState.contractId = targetContractId;
     coordState.projectName = cleanText(project.label || targetContractId);
-    coordState.signatureDate = "";
-    coordState.daysSinceSignature = null;
+    coordState.signatureDate = cleanText(PROJECT_SIGNATURE_DATE[targetContractId] || "");
+    coordState.daysSinceSignature = calculateDaysSinceFromIso_(coordState.signatureDate);
     coordState.tasks = [];
     coordState.events = [];
     coordState.warnings = [];
@@ -2875,15 +2875,29 @@
     var tasks = Array.isArray(project.tasks) ? project.tasks : [];
     var events = Array.isArray(project.events) ? project.events : [];
     var warnings = Array.isArray(project.warnings) ? project.warnings : [];
+    var contractId = cleanText(project.contractId);
+    var signatureDate = cleanText(project.signatureDate);
+    var daysSinceSignature = null;
+
+    if (!signatureDate && contractId) {
+      signatureDate = cleanText(PROJECT_SIGNATURE_DATE[contractId] || "");
+    }
+
+    if (project && project.daysSinceSignature !== undefined && project.daysSinceSignature !== null && cleanText(project.daysSinceSignature) !== "") {
+      daysSinceSignature = Number(project.daysSinceSignature);
+      if (isNaN(daysSinceSignature) || daysSinceSignature < 0) {
+        daysSinceSignature = null;
+      }
+    }
+    if (daysSinceSignature === null) {
+      daysSinceSignature = calculateDaysSinceFromIso_(signatureDate);
+    }
 
     return {
-      contractId: cleanText(project.contractId),
+      contractId: contractId,
       projectName: cleanText(project.projectName),
-      signatureDate: cleanText(project.signatureDate),
-      daysSinceSignature:
-        project && project.daysSinceSignature !== undefined && project.daysSinceSignature !== null
-          ? Number(project.daysSinceSignature)
-          : null,
+      signatureDate: signatureDate,
+      daysSinceSignature: daysSinceSignature,
       summary: project.summary || {},
       tasks: tasks.map(function (task) {
         return {
@@ -2919,6 +2933,14 @@
         return cleanText(warning);
       }).filter(Boolean)
     };
+  }
+
+  function calculateDaysSinceFromIso_(isoDate) {
+    var signature = parseIsoDate_(isoDate);
+    if (!signature) {
+      return null;
+    }
+    return calculateDaysSince_(signature, getCutoffDate_());
   }
 
   function renderCoordPanel_() {
