@@ -195,9 +195,7 @@
 
   var DEFAULT_SIGNATURE_DATE = "";
   var PROJECT_SIGNATURE_DATE = Object.assign({}, cfg.datasAssinatura || {});
-  var DEFAULT_DEADLINE_SUMMARY =
-    cleanText(cfg.deadlineSummaryDefault) ||
-    "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
+  var DEFAULT_DEADLINE_SUMMARY = cleanText(cfg.deadlineSummaryDefault) || "";
   var DEFAULT_DEADLINE_LEGEND_MAP = {
     F1: "Fase I: ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento.",
     F2: "Fase II: ate 5 dias uteis apos aprovacao do Anteprojeto Fase I.",
@@ -802,7 +800,7 @@
         code: code,
         label: label,
         signatureDate: signatureDate,
-        deadlineSummary: deadlineSummary || DEFAULT_DEADLINE_SUMMARY
+        deadlineSummary: deadlineSummary
       };
       normalized.push(project);
       map[code] = project;
@@ -823,10 +821,21 @@
     if (!label) {
       return code;
     }
+    if (isContractDisplayName_(label)) {
+      return label;
+    }
     if (label.indexOf(code) === 0) {
       return label;
     }
     return code + " | " + label;
+  }
+
+  function isContractDisplayName_(label) {
+    var text = cleanText(label).toUpperCase();
+    if (!text) {
+      return false;
+    }
+    return /^CT[\s_-]+[0-9]{8}[-_/][0-9]{3}(?:[-_/][0-9]{3})?/.test(text);
   }
 
   function handleProjectSelectionChange() {
@@ -1005,7 +1014,7 @@
           code: code,
           label: formatProjectLabel_(code, incomingLabel),
           signatureDate: incomingSignatureDate,
-          deadlineSummary: incomingDeadlineSummary || DEFAULT_DEADLINE_SUMMARY
+          deadlineSummary: incomingDeadlineSummary
         };
         mergedMap[code] = existing;
         merged.push(existing);
@@ -2768,7 +2777,7 @@
     coordState.projectName = cleanText(project.label || targetContractId);
     coordState.signatureDate = cleanText(PROJECT_SIGNATURE_DATE[targetContractId] || "");
     coordState.daysSinceSignature = calculateDaysSinceFromIso_(coordState.signatureDate);
-    coordState.deadlineSummary = cleanText(project.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY;
+    coordState.deadlineSummary = cleanText(project.deadlineSummary);
     coordState.tasks = [];
     coordState.events = [];
     coordState.warnings = [];
@@ -2954,9 +2963,6 @@
     if (!deadlineSummary && contractId && projectMap[contractId]) {
       deadlineSummary = cleanText(projectMap[contractId].deadlineSummary);
     }
-    if (!deadlineSummary) {
-      deadlineSummary = DEFAULT_DEADLINE_SUMMARY;
-    }
 
     return {
       contractId: contractId,
@@ -3029,9 +3035,7 @@
       );
     }
     if (coordDeadlineMetaEl) {
-      coordDeadlineMetaEl.innerHTML = buildCoordDeadlineMetaHtml_(
-        cleanText(coordState.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY
-      );
+      coordDeadlineMetaEl.innerHTML = buildCoordDeadlineMetaHtml_(cleanText(coordState.deadlineSummary));
     }
 
     renderCoordWarnings_();
@@ -3172,7 +3176,7 @@
     if (!items.length) {
       return (
         '<span class="coord-deadline-title">Prazos contratuais (resumo)</span>' +
-        '<span class="coord-deadline-empty">Nao informado.</span>'
+        '<span class="coord-deadline-empty">Nao cadastrado neste projeto.</span>'
       );
     }
 
@@ -3182,7 +3186,7 @@
       items
         .map(function (item) {
           return (
-            '<span class="coord-deadline-chip" tabindex="0" role="note" title="' +
+            '<span class="coord-deadline-chip" tabindex="0" role="note" data-tip="' +
             escapeAttr(item.description) +
             '" aria-label="' +
             escapeAttr(item.description) +
@@ -3197,19 +3201,166 @@
   }
 
   function parseDeadlineSummaryItems_(deadlineSummary) {
-    var summary = cleanText(deadlineSummary) || DEFAULT_DEADLINE_SUMMARY;
-    return summary
-      .split("|")
-      .map(function (part) {
-        return cleanText(part);
-      })
-      .filter(Boolean)
-      .map(function (label) {
-        return {
-          label: label,
-          description: buildDeadlineTooltipDescription_(label)
-        };
+    var summary = cleanText(deadlineSummary) || cleanText(DEFAULT_DEADLINE_SUMMARY);
+    if (!summary) {
+      return [];
+    }
+
+    if (summary.indexOf("|") >= 0) {
+      return summary
+        .split("|")
+        .map(function (part) {
+          return cleanText(part);
+        })
+        .filter(Boolean)
+        .map(function (label) {
+          return {
+            label: label,
+            description: buildDeadlineTooltipDescription_(label)
+          };
+        });
+    }
+
+    var detailed = parseDetailedDeadlineText_(summary);
+    if (detailed.length) {
+      return detailed;
+    }
+
+    return [
+      {
+        label: "PRAZOS (TEXTO)",
+        description: summary
+      }
+    ];
+  }
+
+  function parseDetailedDeadlineText_(text) {
+    var normalized = cleanText(text).replace(/\r/g, " ").replace(/\n+/g, " ").replace(/\s+/g, " ");
+    if (!normalized) {
+      return [];
+    }
+
+    var section41 = extractDeadlineSection_(normalized, /4\.1\b/i, /4\.2\b/i);
+    var section42 = extractDeadlineSection_(normalized, /4\.2\b/i, /4\.3\b/i);
+    var section43 = extractDeadlineSection_(normalized, /4\.3\b/i, /4\.4\b/i);
+    var section44 = extractDeadlineSection_(normalized, /4\.4\b/i, /4\.5\b/i);
+    var section45 = extractDeadlineSection_(normalized, /4\.5\b/i, /4\.6\b/i);
+    var section46 = extractDeadlineSection_(normalized, /4\.6\b/i, /4\.7\b/i);
+    var section47 = extractDeadlineSection_(normalized, /4\.7\b/i, /(?:5\.|$)/i);
+    var items = [];
+    var rafDu = [];
+
+    function pushItem(sigla, description) {
+      var cleanDesc = cleanText(description);
+      if (!cleanDesc) {
+        return "";
+      }
+      var du = extractDueDaysFromText_(cleanDesc);
+      var label = sigla;
+      if (du) {
+        label += " " + du + "DU";
+      }
+      items.push({
+        label: label,
+        description: cleanDesc
       });
+      return du;
+    }
+
+    var f1 = extractPhaseText_(section41, "I", "II");
+    var f2 = extractPhaseText_(section41, "II", "III");
+    var f3 = extractPhaseText_(section41, "III", "");
+    pushItem("F1", f1);
+    pushItem("F2", f2);
+    pushItem("F3", f3);
+
+    rafDu[0] = extractDueDaysFromText_(extractPhaseText_(section42, "I", "II"));
+    rafDu[1] = extractDueDaysFromText_(extractPhaseText_(section42, "II", "III"));
+    rafDu[2] = extractDueDaysFromText_(extractPhaseText_(section42, "III", ""));
+    var rafDescription = cleanText(section42).replace(/^4\.2\.?\s*/i, "").trim();
+    if (rafDescription) {
+      var rafLabel = "RAF1/2/3";
+      if (rafDu[0] || rafDu[1] || rafDu[2]) {
+        rafLabel += " " + (rafDu[0] || "?") + "/" + (rafDu[1] || "?") + "/" + (rafDu[2] || "?") + "DU";
+      }
+      items.push({
+        label: rafLabel,
+        description: rafDescription
+      });
+    }
+
+    pushItem("PRE", cleanText(section43).replace(/^4\.3\.?\s*/i, "").trim());
+    pushItem("RFA", cleanText(section44).replace(/^4\.4\.?\s*/i, "").trim());
+    pushItem("EXE", cleanText(section45).replace(/^4\.5\.?\s*/i, "").trim());
+    pushItem("DET", cleanText(section46).replace(/^4\.6\.?\s*/i, "").trim());
+    pushItem("RDE", cleanText(section47).replace(/^4\.7\.?\s*/i, "").trim());
+
+    if (/recesso|natal|ano novo/i.test(normalized)) {
+      items.push({
+        label: "RECESSO",
+        description: extractRecessoText_(normalized)
+      });
+    }
+
+    return items;
+  }
+
+  function extractDeadlineSection_(text, startRegex, endRegex) {
+    var full = cleanText(text);
+    if (!full) {
+      return "";
+    }
+
+    var startMatch = full.match(startRegex);
+    if (!startMatch) {
+      return "";
+    }
+
+    var startIndex = startMatch.index || 0;
+    var tail = full.slice(startIndex);
+    var endMatch = tail.match(endRegex);
+    if (endMatch && endMatch.index > 0) {
+      tail = tail.slice(0, endMatch.index);
+    }
+    return cleanText(tail);
+  }
+
+  function extractPhaseText_(sectionText, currentRoman, nextRoman) {
+    var section = cleanText(sectionText);
+    if (!section) {
+      return "";
+    }
+    var pattern =
+      "Fase\\s*" +
+      currentRoman +
+      "\\s*[:\\-]\\s*([\\s\\S]*?)" +
+      (nextRoman ? "(?=Fase\\s*" + nextRoman + "\\s*[:\\-]|$)" : "$");
+    var match = section.match(new RegExp(pattern, "i"));
+    if (!match) {
+      return "";
+    }
+    return cleanText(match[1]).replace(/^[\s;,-]+/, "").replace(/[\s;,-]+$/, "");
+  }
+
+  function extractDueDaysFromText_(text) {
+    var source = cleanText(text);
+    if (!source) {
+      return "";
+    }
+    var match = source.match(/(\d{1,3})\s*(?:\([^)]+\))?\s*dias?\s*uteis?/i) || source.match(/(\d{1,3})\s*DU\b/i);
+    return match ? cleanText(match[1]) : "";
+  }
+
+  function extractRecessoText_(text) {
+    var normalized = cleanText(text);
+    if (!normalized) {
+      return "Nao sao contabilizados os prazos no periodo de recesso entre Natal e Ano Novo.";
+    }
+    var match = normalized.match(/[^.]*recesso[^.]*\./i);
+    if (match) {
+      return cleanText(match[0]);
+    }
+    return "Nao sao contabilizados os prazos no periodo de recesso entre Natal e Ano Novo.";
   }
 
   function buildDeadlineTooltipDescription_(tokenLabel) {

@@ -1169,6 +1169,7 @@ textarea {
 }
 
 .coord-deadline-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: 4px 9px;
@@ -1182,12 +1183,60 @@ textarea {
   cursor: help;
 }
 
+.coord-deadline-chip::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: calc(100% + 2px);
+  border: 6px solid transparent;
+  border-bottom-color: #0f3348;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.coord-deadline-chip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 13px);
+  width: min(420px, 70vw);
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #2d4e63;
+  background: #0f3348;
+  color: #f2f8fc;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 500;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+  pointer-events: none;
+  box-shadow: 0 10px 20px rgba(9, 23, 34, 0.24);
+  z-index: 3;
+}
+
 .coord-deadline-chip:hover,
 .coord-deadline-chip:focus-visible {
   border-color: #6e98b2;
   background: #eaf4fa;
   color: #16384c;
   outline: none;
+}
+
+.coord-deadline-chip:hover::before,
+.coord-deadline-chip:hover::after,
+.coord-deadline-chip:focus-visible::before,
+.coord-deadline-chip:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .coord-deadline-empty {

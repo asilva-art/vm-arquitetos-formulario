@@ -8,8 +8,7 @@ var CONTROL_DATA_START_ROW = 2;
 var EVENTS_DATA_START_ROW = 2;
 var DEFAULT_TZ = "America/Sao_Paulo";
 
-var DEFAULT_CONTRACT_DEADLINE_SUMMARY =
-  "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
+var DEFAULT_CONTRACT_DEADLINE_SUMMARY = "";
 
 var CONTRACT_DEADLINE_LEGEND = [
   { sigla: "F1/F2/F3", descricao: "Fases I, II e III de Estudos Preliminares + Anteprojeto" },
@@ -86,11 +85,11 @@ var STATUS_CONTROL = {
 };
 
 var PROJECT_MAP = {
-  "CT-117": { projectName: "PH Top Green", contractId: "CT-117", sectionName: "Secao CT-117" },
-  "CT-119": { projectName: "KT Costa Laguna", contractId: "CT-119", sectionName: "Secao CT-119" },
-  "CT-120": { projectName: "Alliance Sede NL", contractId: "CT-120", sectionName: "Secao CT-120" },
-  "CT-121": { projectName: "VC Hermes Sabara", contractId: "CT-121", sectionName: "Secao CT-121" },
-  "CT-122": { projectName: "IT Bernardo Guimaraes", contractId: "CT-122", sectionName: "Secao CT-122" },
+  "CT-117": { projectName: "CT-117", contractId: "CT-117", sectionName: "Secao CT-117" },
+  "CT-119": { projectName: "CT-119", contractId: "CT-119", sectionName: "Secao CT-119" },
+  "CT-120": { projectName: "CT-120", contractId: "CT-120", sectionName: "Secao CT-120" },
+  "CT-121": { projectName: "CT-121", contractId: "CT-121", sectionName: "Secao CT-121" },
+  "CT-122": { projectName: "CT-122", contractId: "CT-122", sectionName: "Secao CT-122" },
   "ADMIN-INTERNO": { projectName: "Administrativo/Interno", contractId: "ADMIN-INTERNO", sectionName: "Secao Administrativo/Interno" }
 };
 var CONTRACTS_SHEET_NAME = "CONTRATOS";
@@ -934,7 +933,7 @@ function getProjectMap_() {
       contractId: clean_(PROJECT_MAP[code].contractId),
       sectionName: clean_(PROJECT_MAP[code].sectionName),
       signatureDate: "",
-      deadlineSummary: DEFAULT_CONTRACT_DEADLINE_SUMMARY
+      deadlineSummary: ""
     };
   }
 
@@ -945,7 +944,7 @@ function getProjectMap_() {
       contractId: item.contractId,
       sectionName: "Secao " + item.contractId,
       signatureDate: clean_(item.signatureDate),
-      deadlineSummary: clean_(item.deadlineSummary) || DEFAULT_CONTRACT_DEADLINE_SUMMARY
+      deadlineSummary: clean_(item.deadlineSummary)
     };
   }
 
@@ -981,23 +980,65 @@ function readProjectsFromContractsSheet_() {
     "codigo ct",
     "ct"
   ]);
-  var projectNameIndex = findHeaderIndex_(headers, [
+  var projectNameIndex = findHeaderIndexByPriority_(headers, [
+    "nome exibicao",
+    "nome de exibicao",
+    "nome completo",
+    "nome contrato",
+    "nome do contrato",
+    "titulo contrato",
+    "titulo do contrato",
+    "cliente",
+    "clientes",
+    "nome cliente",
+    "nome clientes",
+    "arquivo contrato",
+    "arquivo do contrato",
     "apelido",
     "nome projeto",
     "projeto",
     "nome do projeto",
     "nome"
   ]);
+  if (projectNameIndex < 0) {
+    projectNameIndex = findHeaderIndex_(headers, [
+      "apelido",
+      "nome projeto",
+      "projeto",
+      "nome do projeto",
+      "nome"
+    ]);
+  }
   var statusIndex = findHeaderIndex_(headers, ["status", "situacao", "situação", "ativo"]);
-  var deadlineSummaryIndex = findHeaderIndex_(headers, [
+  var deadlineSummaryIndex = findHeaderIndexByPriority_(headers, [
+    "clausula prazos texto completo",
+    "clausula de prazos texto completo",
+    "texto completo clausula prazos",
+    "texto prazos contratuais",
+    "prazos contratuais completo",
+    "prazos contratuais completos",
+    "prazos detalhados",
+    "clausula prazos",
+    "clausula de prazos",
+    "prazos contratuais",
     "prazos resumo",
     "resumo prazos",
     "prazo resumo",
-    "prazos contratuais",
     "resumo clausula prazos",
     "resumo clausula de prazos",
-    "clausula prazos"
+    "prazos"
   ]);
+  if (deadlineSummaryIndex < 0) {
+    deadlineSummaryIndex = findHeaderIndex_(headers, [
+      "prazos resumo",
+      "resumo prazos",
+      "prazo resumo",
+      "prazos contratuais",
+      "resumo clausula prazos",
+      "resumo clausula de prazos",
+      "clausula prazos"
+    ]);
+  }
   var signatureDateIndex = findHeaderIndex_(headers, [
     "data assinatura",
     "data de assinatura",
@@ -1028,8 +1069,16 @@ function readProjectsFromContractsSheet_() {
     }
 
     var projectName = projectNameIndex >= 0 ? clean_(row[projectNameIndex]) : "";
+    var contractCell = contractIdIndex >= 0 ? row[contractIdIndex] : "";
+    var contractDisplayName = extractContractDisplayName_(contractCell);
     if (!projectName && contractIdIndex >= 0 && contractIdIndex + 1 < row.length) {
       projectName = clean_(row[contractIdIndex + 1]);
+    }
+    if (!projectName && contractDisplayName) {
+      projectName = contractDisplayName;
+    }
+    if (!projectName) {
+      projectName = findContractDisplayNameInRow_(row);
     }
     if (!projectName && PROJECT_MAP[contractId]) {
       projectName = clean_(PROJECT_MAP[contractId].projectName);
@@ -1037,15 +1086,14 @@ function readProjectsFromContractsSheet_() {
     if (!projectName) {
       projectName = contractId;
     }
+    projectName = normalizeProjectDisplayName_(projectName);
 
     map[contractId] = {
       projectName: projectName,
       contractId: contractId,
       sectionName: "Secao " + contractId,
       signatureDate: signatureDateIndex >= 0 ? toIsoDateOrBlank_(row[signatureDateIndex]) : "",
-      deadlineSummary:
-        (deadlineSummaryIndex >= 0 ? clean_(row[deadlineSummaryIndex]) : "") ||
-        DEFAULT_CONTRACT_DEADLINE_SUMMARY
+      deadlineSummary: deadlineSummaryIndex >= 0 ? clean_(row[deadlineSummaryIndex]) : ""
     };
   }
 
@@ -1095,6 +1143,20 @@ function findHeaderIndex_(headers, aliases) {
   return -1;
 }
 
+function findHeaderIndexByPriority_(headers, aliases) {
+  var i;
+  var j;
+  for (j = 0; j < aliases.length; j += 1) {
+    var alias = normalizeHeaderText_(aliases[j]);
+    for (i = 0; i < headers.length; i += 1) {
+      if (headers[i] === alias || headers[i].indexOf(alias) >= 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
 function isBlankRow_(row) {
   var i;
   for (i = 0; i < row.length; i += 1) {
@@ -1116,13 +1178,92 @@ function findContractIdInRow_(row) {
   return "";
 }
 
+function findContractDisplayNameInRow_(row) {
+  var i;
+  for (i = 0; i < row.length; i += 1) {
+    var display = extractContractDisplayName_(row[i]);
+    if (display) {
+      return display;
+    }
+  }
+  return "";
+}
+
+function extractContractDisplayName_(value) {
+  var text = clean_(value);
+  if (!text) {
+    return "";
+  }
+
+  text = text.replace(/\\/g, "/");
+  if (text.indexOf("/") >= 0) {
+    text = text.substring(text.lastIndexOf("/") + 1);
+  }
+
+  text = text
+    .replace(/^Complete_with_Docusign_/i, "")
+    .replace(/^Complete with Docusign\s*/i, "")
+    .replace(/\.(pdf|docx?|xlsx?)$/i, "")
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  text = text.replace(/\s*-\s*(clicksign|d4sign|docusign|docusing)\s*$/i, "").trim();
+  text = text.replace(/\s*-\s*pdf\s*$/i, "").trim();
+
+  var structured = text.match(
+    /CT[\s\-_]*([0-9]{8})\s*[-_/]\s*([0-9]{3})(?:\s*[-_/]\s*([0-9]{3}))?\s*[-_/]?\s*(.*)$/i
+  );
+  if (structured) {
+    var codePart = structured[1] + "-" + structured[2] + (structured[3] ? "-" + structured[3] : "");
+    var suffix = clean_(structured[4]).replace(/^[-_\s]+/, "").replace(/[-_\s]+$/, "");
+    suffix = suffix.replace(/\s+/g, " ");
+    if (suffix) {
+      return normalizeProjectDisplayName_("CT " + codePart + " - " + suffix);
+    }
+    return normalizeProjectDisplayName_("CT " + codePart);
+  }
+
+  if (!/CT[\s\-_]*[0-9]{2,6}/i.test(text)) {
+    return "";
+  }
+
+  return normalizeProjectDisplayName_(text);
+}
+
+function normalizeProjectDisplayName_(value) {
+  var text = clean_(value);
+  if (!text) {
+    return "";
+  }
+
+  text = text
+    .replace(/\.(pdf|docx?|xlsx?)$/i, "")
+    .replace(/\s*-\s*(clicksign|d4sign|docusign|docusing)\s*$/i, "")
+    .replace(/\s*-\s*pdf\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text;
+}
+
 function extractContractId_(value) {
   var text = clean_(value).toUpperCase();
   if (!text) {
     return "";
   }
 
-  var match = text.match(/CT[\s\-_/]*([0-9]{2,6})/);
+  var longMatch = text.match(/CT[\s\-_]*([0-9]{8})(?:[\s\-_\/]*([0-9]{3}))(?:[\s\-_\/]*([0-9]{3}))?/);
+  if (longMatch) {
+    var longNumber = longMatch[3] || longMatch[2];
+    var normalizedLong = String(longNumber).replace(/^0+/, "");
+    if (!normalizedLong) {
+      normalizedLong = "0";
+    }
+    return "CT-" + normalizedLong;
+  }
+
+  var match = text.match(/CT[\s\-_/]*([0-9]{2,6})\b/);
   if (!match) {
     return "";
   }
@@ -2088,7 +2229,7 @@ function buildCoordProjectPayload_(contractId) {
 
   var signatureDate = clean_(projectInfo.signatureDate);
   var daysSinceSignature = calculateDaysSinceDate_(signatureDate, new Date());
-  var contractDeadlineSummary = clean_(projectInfo.deadlineSummary) || DEFAULT_CONTRACT_DEADLINE_SUMMARY;
+  var contractDeadlineSummary = clean_(projectInfo.deadlineSummary);
 
   return {
     status: "ok",
