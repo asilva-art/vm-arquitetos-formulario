@@ -90,7 +90,6 @@
   var projectMap = {};
   var projectList = [];
   var refOptionsByProject = normalizeRefOptions(cfg.refOptions || {});
-  rebuildProjectCache_(localProjectsFromConfig);
 
   var LOCAL_EAP_TEMPLATE = [
     { wbs: "1.1.1", phase: "Estudos Preliminares", task: "Elaboracao do Briefing Documentado" },
@@ -199,6 +198,7 @@
   var DEFAULT_DEADLINE_SUMMARY =
     cleanText(cfg.deadlineSummaryDefault) ||
     "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
+  rebuildProjectCache_(localProjectsFromConfig);
 
   init();
 
