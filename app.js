@@ -196,6 +196,8 @@
   var DEFAULT_SIGNATURE_DATE = "";
   var PROJECT_SIGNATURE_DATE = Object.assign({}, cfg.datasAssinatura || {});
   var DEFAULT_DEADLINE_SUMMARY = cleanText(cfg.deadlineSummaryDefault) || "";
+  var LEGACY_GENERIC_DEADLINE_SUMMARY =
+    "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
   var DEFAULT_DEADLINE_LEGEND_MAP = {
     F1: "Fase I: ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento.",
     F2: "Fase II: ate 5 dias uteis apos aprovacao do Anteprojeto Fase I.",
@@ -838,6 +840,10 @@
     return /^CT[\s_-]+[0-9]{8}[-_/][0-9]{3}(?:[-_/][0-9]{3})?/.test(text);
   }
 
+  function isLegacyGenericDeadlineSummary_(value) {
+    return cleanText(value) === LEGACY_GENERIC_DEADLINE_SUMMARY;
+  }
+
   function handleProjectSelectionChange() {
     var draft = buildCurrentDraft_();
     renderProjectSections(getSelectedProjectCodes());
@@ -1022,13 +1028,23 @@
       }
 
       if (preferIncoming && incomingLabel) {
-        existing.label = formatProjectLabel_(code, incomingLabel);
+        var formattedIncomingLabel = formatProjectLabel_(code, incomingLabel);
+        var keepExistingLabel =
+          isContractDisplayName_(existing.label) && !isContractDisplayName_(formattedIncomingLabel);
+        if (!keepExistingLabel) {
+          existing.label = formattedIncomingLabel;
+        }
       }
       if (incomingSignatureDate) {
         existing.signatureDate = incomingSignatureDate;
       }
       if (incomingDeadlineSummary) {
-        existing.deadlineSummary = incomingDeadlineSummary;
+        var existingSummary = cleanText(existing.deadlineSummary);
+        var incomingIsGeneric = isLegacyGenericDeadlineSummary_(incomingDeadlineSummary);
+        var existingIsDetailed = /4\.\d/.test(existingSummary);
+        if (!existingSummary || !incomingIsGeneric || !existingIsDetailed) {
+          existing.deadlineSummary = incomingDeadlineSummary;
+        }
       }
     }
 
