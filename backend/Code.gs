@@ -1491,6 +1491,21 @@ function calculateDelayDays_(plannedEndValue, referenceValue) {
   return diffDays > 0 ? diffDays : 0;
 }
 
+function calculateDaysSinceDate_(dateValue, referenceDate) {
+  var start = parseDate_(dateValue);
+  if (!start) {
+    return "";
+  }
+
+  var end = parseDate_(referenceDate) || new Date();
+  var millis = end.getTime() - start.getTime();
+  if (millis < 0) {
+    return 0;
+  }
+
+  return Math.floor(millis / (24 * 60 * 60 * 1000));
+}
+
 function resolveProjectInfo_(projectCode, projectLabel) {
   var mapValue = getProjectMap_()[projectCode];
   if (mapValue) {
@@ -2040,11 +2055,16 @@ function buildCoordProjectPayload_(contractId) {
     return clean_(a.refEap).localeCompare(clean_(b.refEap));
   });
 
+  var signatureDate = clean_(projectInfo.signatureDate);
+  var daysSinceSignature = calculateDaysSinceDate_(signatureDate, new Date());
+
   return {
     status: "ok",
     project: {
       contractId: target,
       projectName: clean_(projectInfo.projectName) || target,
+      signatureDate: signatureDate,
+      daysSinceSignature: daysSinceSignature,
       summary: summary,
       tasks: tasks,
       events: readEventsByContract_(eventsSheet, target),

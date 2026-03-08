@@ -66,6 +66,8 @@
     open: false,
     contractId: "",
     projectName: "",
+    signatureDate: "",
+    daysSinceSignature: null,
     tasks: [],
     events: [],
     warnings: [],
@@ -2721,6 +2723,8 @@
     coordState.open = true;
     coordState.contractId = targetContractId;
     coordState.projectName = cleanText(project.label || targetContractId);
+    coordState.signatureDate = "";
+    coordState.daysSinceSignature = null;
     coordState.tasks = [];
     coordState.events = [];
     coordState.warnings = [];
@@ -2752,6 +2756,8 @@
         coordState.events = payload.events;
         coordState.warnings = payload.warnings;
         coordState.projectName = payload.projectName || coordState.projectName;
+        coordState.signatureDate = payload.signatureDate || "";
+        coordState.daysSinceSignature = payload.daysSinceSignature;
         coordState.originalTasksByRef = {};
         payload.tasks.forEach(function (task) {
           coordState.originalTasksByRef[cleanText(task.refEap)] = {
@@ -2866,6 +2872,11 @@
     return {
       contractId: cleanText(project.contractId),
       projectName: cleanText(project.projectName),
+      signatureDate: cleanText(project.signatureDate),
+      daysSinceSignature:
+        project && project.daysSinceSignature !== undefined && project.daysSinceSignature !== null
+          ? Number(project.daysSinceSignature)
+          : null,
       summary: project.summary || {},
       tasks: tasks.map(function (task) {
         return {
@@ -2912,8 +2923,14 @@
       coordTitleEl.textContent = "Configuracao do projeto " + coordState.contractId;
     }
     if (coordSubtitleEl) {
+      var signatureMeta = buildCoordSignatureMeta_(
+        cleanText(coordState.signatureDate),
+        coordState.daysSinceSignature
+      );
       coordSubtitleEl.textContent =
         (cleanText(coordState.projectName) || coordState.contractId) +
+        " | " +
+        signatureMeta +
         " | Edite sequenciamento, datas, responsaveis, status, bloqueios e eventos.";
     }
 
@@ -3030,6 +3047,19 @@
         return "<li>" + escapeHtml(cleanText(warning)) + "</li>";
       }).join("") +
       "</ul>";
+  }
+
+  function buildCoordSignatureMeta_(signatureDate, daysSinceSignature) {
+    if (!cleanText(signatureDate)) {
+      return "Assinatura contratual nao informada";
+    }
+
+    var days = Number(daysSinceSignature);
+    if (isNaN(days) || days < 0) {
+      days = 0;
+    }
+
+    return "Assinatura contratual: " + formatIsoDateToBr(signatureDate) + " (" + days + " dias)";
   }
 
   function renderCoordEvents_(events) {
