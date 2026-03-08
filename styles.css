@@ -1134,6 +1134,18 @@ textarea {
   line-height: 1.45;
 }
 
+.coord-contract-meta {
+  margin: 7px 0 0;
+  padding: 7px 10px;
+  border: 1px solid #d8e1e8;
+  border-radius: 8px;
+  background: #f7fafc;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #3f5465;
+  font-weight: 600;
+}
+
 .coord-close {
   width: auto;
   min-width: 120px;

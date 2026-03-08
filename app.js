@@ -43,6 +43,7 @@
   var coordOverlayEl = document.getElementById("coord-overlay");
   var coordTitleEl = document.getElementById("coord-title");
   var coordSubtitleEl = document.getElementById("coord-subtitle");
+  var coordContractMetaEl = document.getElementById("coord-contract-meta");
   var coordCloseEl = document.getElementById("coord-close");
   var coordFilterEl = document.getElementById("coord-filter");
   var coordSaveEl = document.getElementById("coord-save");
@@ -2741,6 +2742,9 @@
     if (coordSubtitleEl) {
       coordSubtitleEl.textContent = "Carregando dados de coordenacao...";
     }
+    if (coordContractMetaEl) {
+      coordContractMetaEl.textContent = "Assinatura contratual: carregando...";
+    }
     if (coordTaskListEl) {
       coordTaskListEl.innerHTML = '<div class="portfolio-empty">Carregando tarefas do projeto...</div>';
     }
@@ -2780,6 +2784,9 @@
       .catch(function (error) {
         if (coordSubtitleEl) {
           coordSubtitleEl.textContent = "Nao foi possivel carregar as configuracoes deste projeto.";
+        }
+        if (coordContractMetaEl) {
+          coordContractMetaEl.textContent = "Assinatura contratual: nao foi possivel carregar.";
         }
         if (coordTaskListEl) {
           coordTaskListEl.innerHTML = '<div class="portfolio-empty">Erro ao carregar tarefas. Tente novamente.</div>';
@@ -2923,15 +2930,15 @@
       coordTitleEl.textContent = "Configuracao do projeto " + coordState.contractId;
     }
     if (coordSubtitleEl) {
-      var signatureMeta = buildCoordSignatureMeta_(
+      coordSubtitleEl.textContent =
+        (cleanText(coordState.projectName) || coordState.contractId) +
+        " | Edite sequenciamento, datas, responsaveis, status, bloqueios e eventos.";
+    }
+    if (coordContractMetaEl) {
+      coordContractMetaEl.textContent = buildCoordSignatureMeta_(
         cleanText(coordState.signatureDate),
         coordState.daysSinceSignature
       );
-      coordSubtitleEl.textContent =
-        (cleanText(coordState.projectName) || coordState.contractId) +
-        " | " +
-        signatureMeta +
-        " | Edite sequenciamento, datas, responsaveis, status, bloqueios e eventos.";
     }
 
     renderCoordWarnings_();
@@ -3051,7 +3058,7 @@
 
   function buildCoordSignatureMeta_(signatureDate, daysSinceSignature) {
     if (!cleanText(signatureDate)) {
-      return "Assinatura contratual nao informada";
+      return "Assinatura contratual: nao informada | Dias de contrato: --";
     }
 
     var days = Number(daysSinceSignature);
@@ -3059,7 +3066,12 @@
       days = 0;
     }
 
-    return "Assinatura contratual: " + formatIsoDateToBr(signatureDate) + " (" + days + " dias)";
+    return (
+      "Assinatura contratual: " +
+      formatIsoDateToBr(signatureDate) +
+      " | Dias de contrato: " +
+      days
+    );
   }
 
   function renderCoordEvents_(events) {
