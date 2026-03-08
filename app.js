@@ -1029,9 +1029,9 @@
 
       if (preferIncoming && incomingLabel) {
         var formattedIncomingLabel = formatProjectLabel_(code, incomingLabel);
-        var keepExistingLabel =
-          isContractDisplayName_(existing.label) && !isContractDisplayName_(formattedIncomingLabel);
-        if (!keepExistingLabel) {
+        var hasExistingLabel = !!cleanText(existing.label);
+        var incomingIsContractDisplay = isContractDisplayName_(formattedIncomingLabel);
+        if (!hasExistingLabel || incomingIsContractDisplay) {
           existing.label = formattedIncomingLabel;
         }
       }
