@@ -18,8 +18,18 @@ window.VM_FORM_CONFIG = {
     { code: "CT-117", label: "CT-117 | PH Top Green" },
     { code: "CT-119", label: "CT-119 | KT Costa Laguna" },
     { code: "CT-120", label: "CT-120 | Alliance Sede NL" },
-    { code: "CT-121", label: "CT 20260120-570-121 - Valdete e Carlos" },
-    { code: "CT-122", label: "CT-122 | Iara e Tales" },
+    {
+      code: "CT-121",
+      label: "CT 20260120-570-121 - Valdete e Carlos",
+      deadlineSummary:
+        "4.1 Estudos Preliminares e Anteprojeto: Fase I: Ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento; Fase II: Ate 5 dias uteis a partir da aprovacao do Anteprojeto Fase I; Fase III: Ate 15 dias uteis a partir da entrega Anteprojeto Fase II. 4.2 Revisao Anteprojeto: Fase I: Ate 5 dias uteis; Fase II: Ate 5 dias uteis; Fase III: Ate 10 dias uteis. 4.3 Pre-Executivo: Ate 10 dias uteis apos aprovacao do Anteprojeto Fase III. 4.4 Revisao Final do Anteprojeto: Ate 7 dias uteis apos aprovacao do pre-executivo. 4.5 Projeto Executivo: Ate 15 dias uteis entrega da revisao final do Anteprojeto. 4.6 Detalhamento: Ate 15 dias uteis apos entrega do Projeto Executivo. 4.7 Revisao de detalhamento e executivo: 10 dias uteis. Nao sao contabilizados os prazos no periodo de recesso, entre o Natal e Ano Novo."
+    },
+    {
+      code: "CT-122",
+      label: "CT-122 | Iara e Tales",
+      deadlineSummary:
+        "4.1 Estudos Preliminares e Anteprojeto: Fase I: Ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento; Fase II: Ate 20 dias uteis a partir da aprovacao do anteprojeto Fase I; 4.2 Revisao Anteprojeto: Fase I: Ate 5 dias uteis; Fase II: Ate 15 dias uteis; 4.3 Pre-Executivo: Ate 7 dias uteis apos aprovacao do Anteprojeto Fase II; 4.4 Revisao Final do Anteprojeto: Ate 10 dias uteis apos aprovacao do pre-executivo; 4.5 Projeto Executivo: Ate 15 dias uteis entrega da revisao final do anteprojeto; 4.6 Detalhamento: Ate 20 dias uteis apos entrega do Projeto Executivo. 4.7 Revisao de detalhamento e executivo: 7 dias uteis. Nao sao contabilizados os prazos no periodo de recesso, entre o Natal e Ano Novo."
+    },
     { code: "CT-123", label: "CT 20250108-525-097 - Katia e Luis" },
     { code: "CT-124", label: "CT 20250127-254-098 - Monica e Oswaldo" },
     { code: "CT-125", label: "CT 20250212-851-099 - Carina e Eider" },
