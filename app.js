@@ -198,6 +198,20 @@
   var DEFAULT_DEADLINE_SUMMARY =
     cleanText(cfg.deadlineSummaryDefault) ||
     "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
+  var DEFAULT_DEADLINE_LEGEND_MAP = {
+    F1: "Fase I: ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento.",
+    F2: "Fase II: ate 5 dias uteis apos aprovacao do Anteprojeto Fase I.",
+    F3: "Fase III: ate 15 dias uteis apos entrega do Anteprojeto Fase II.",
+    "RAF1/2/3": "Revisao de Anteprojeto: Fase I ate 5 DU; Fase II ate 5 DU; Fase III ate 10 DU.",
+    PRE: "Pre-Executivo: ate 10 dias uteis apos aprovacao do Anteprojeto Fase III.",
+    RFA: "Revisao Final do Anteprojeto: ate 7 dias uteis apos aprovacao do Pre-Executivo.",
+    EXE: "Projeto Executivo: ate 15 dias uteis apos entrega da revisao final do Anteprojeto.",
+    DET: "Detalhamento: ate 15 dias uteis apos entrega do Projeto Executivo.",
+    RDE: "Revisao de detalhamento e executivo: ate 10 dias uteis.",
+    RECESSO: "Nao sao contabilizados os prazos no periodo de recesso entre Natal e Ano Novo.",
+    DU: "DU = dias uteis."
+  };
+  var deadlineLegendMap = buildDeadlineLegendMap_(cfg.deadlineLegend);
   rebuildProjectCache_(localProjectsFromConfig);
 
   init();
@@ -1436,6 +1450,14 @@
     window[callbackName] = function (data) {
       try {
         if (data && data.status === "ok") {
+          var incomingDeadlineSummaryDefault = cleanText(data.deadlineSummaryDefault);
+          if (incomingDeadlineSummaryDefault) {
+            DEFAULT_DEADLINE_SUMMARY = incomingDeadlineSummaryDefault;
+          }
+          if (Array.isArray(data.deadlineLegend) && data.deadlineLegend.length) {
+            deadlineLegendMap = buildDeadlineLegendMap_(data.deadlineLegend);
+          }
+
           var previousDraft = buildCurrentDraft_();
           var previouslySelected = Array.isArray(previousDraft.selectedCodes)
             ? previousDraft.selectedCodes
@@ -3007,9 +3029,9 @@
       );
     }
     if (coordDeadlineMetaEl) {
-      coordDeadlineMetaEl.textContent =
-        "Prazos contratuais (resumo): " +
-        (cleanText(coordState.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY);
+      coordDeadlineMetaEl.innerHTML = buildCoordDeadlineMetaHtml_(
+        cleanText(coordState.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY
+      );
     }
 
     renderCoordWarnings_();
@@ -3143,6 +3165,155 @@
       " | Dias de contrato: " +
       days
     );
+  }
+
+  function buildCoordDeadlineMetaHtml_(deadlineSummary) {
+    var items = parseDeadlineSummaryItems_(deadlineSummary);
+    if (!items.length) {
+      return (
+        '<span class="coord-deadline-title">Prazos contratuais (resumo)</span>' +
+        '<span class="coord-deadline-empty">Nao informado.</span>'
+      );
+    }
+
+    return (
+      '<span class="coord-deadline-title">Prazos contratuais (resumo)</span>' +
+      '<span class="coord-deadline-chips">' +
+      items
+        .map(function (item) {
+          return (
+            '<span class="coord-deadline-chip" tabindex="0" role="note" title="' +
+            escapeAttr(item.description) +
+            '" aria-label="' +
+            escapeAttr(item.description) +
+            '">' +
+            escapeHtml(item.label) +
+            "</span>"
+          );
+        })
+        .join("") +
+      "</span>"
+    );
+  }
+
+  function parseDeadlineSummaryItems_(deadlineSummary) {
+    var summary = cleanText(deadlineSummary) || DEFAULT_DEADLINE_SUMMARY;
+    return summary
+      .split("|")
+      .map(function (part) {
+        return cleanText(part);
+      })
+      .filter(Boolean)
+      .map(function (label) {
+        return {
+          label: label,
+          description: buildDeadlineTooltipDescription_(label)
+        };
+      });
+  }
+
+  function buildDeadlineTooltipDescription_(tokenLabel) {
+    var key = getDeadlineTokenKey_(tokenLabel);
+    var description = "";
+
+    if (key) {
+      description = cleanText(deadlineLegendMap[key]);
+    }
+
+    if (!description && (key === "F1" || key === "F2" || key === "F3")) {
+      description = cleanText(deadlineLegendMap["F1/F2/F3"]);
+    }
+
+    if (!description && key && key.indexOf("RAF") === 0) {
+      description = cleanText(deadlineLegendMap["RAF1/2/3"] || deadlineLegendMap.RAF);
+    }
+
+    if (!description && /DU\b/i.test(tokenLabel)) {
+      description = cleanText(deadlineLegendMap.DU);
+    }
+
+    if (!description && key === "RECESSO") {
+      description = cleanText(deadlineLegendMap.RECESSO);
+    }
+
+    if (!description) {
+      return cleanText(tokenLabel);
+    }
+
+    return cleanText(tokenLabel) + " - " + description;
+  }
+
+  function getDeadlineTokenKey_(tokenLabel) {
+    var token = cleanText(tokenLabel).toUpperCase();
+    if (!token) {
+      return "";
+    }
+
+    if (token.indexOf("RECESSO") === 0) {
+      return "RECESSO";
+    }
+    if (token.indexOf("RAF1/2/3") === 0) {
+      return "RAF1/2/3";
+    }
+    if (token.indexOf("F1") === 0) {
+      return "F1";
+    }
+    if (token.indexOf("F2") === 0) {
+      return "F2";
+    }
+    if (token.indexOf("F3") === 0) {
+      return "F3";
+    }
+    if (token.indexOf("PRE") === 0) {
+      return "PRE";
+    }
+    if (token.indexOf("RFA") === 0) {
+      return "RFA";
+    }
+    if (token.indexOf("EXE") === 0) {
+      return "EXE";
+    }
+    if (token.indexOf("DET") === 0) {
+      return "DET";
+    }
+    if (token.indexOf("RDE") === 0) {
+      return "RDE";
+    }
+    return "";
+  }
+
+  function buildDeadlineLegendMap_(legendItems) {
+    var map = Object.assign({}, DEFAULT_DEADLINE_LEGEND_MAP);
+    if (!Array.isArray(legendItems)) {
+      return map;
+    }
+
+    legendItems.forEach(function (item) {
+      var sigla = cleanText(item && item.sigla).toUpperCase();
+      var descricao = cleanText(item && item.descricao);
+      if (!sigla || !descricao) {
+        return;
+      }
+
+      map[sigla] = descricao;
+
+      if (sigla === "F1/F2/F3") {
+        map.F1 = descricao;
+        map.F2 = descricao;
+        map.F3 = descricao;
+      }
+      if (sigla === "RAF1/2/3") {
+        map.RAF = descricao;
+      }
+      if (sigla.indexOf("RECESSO") >= 0) {
+        map.RECESSO = descricao;
+      }
+      if (sigla.indexOf("DU") >= 0) {
+        map.DU = descricao;
+      }
+    });
+
+    return map;
   }
 
   function renderCoordEvents_(events) {

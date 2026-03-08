@@ -1147,9 +1147,52 @@ textarea {
 }
 
 .coord-deadline-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-weight: 500;
   color: #415869;
   background: #f4f8fb;
+}
+
+.coord-deadline-title {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6f7f;
+}
+
+.coord-deadline-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coord-deadline-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border: 1px solid #bdd1de;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #274a61;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: help;
+}
+
+.coord-deadline-chip:hover,
+.coord-deadline-chip:focus-visible {
+  border-color: #6e98b2;
+  background: #eaf4fa;
+  color: #16384c;
+  outline: none;
+}
+
+.coord-deadline-empty {
+  font-size: 12px;
+  color: #5e6f7d;
 }
 
 .coord-close {
