@@ -44,6 +44,7 @@
   var coordTitleEl = document.getElementById("coord-title");
   var coordSubtitleEl = document.getElementById("coord-subtitle");
   var coordContractMetaEl = document.getElementById("coord-contract-meta");
+  var coordDeadlineMetaEl = document.getElementById("coord-deadline-meta");
   var coordCloseEl = document.getElementById("coord-close");
   var coordFilterEl = document.getElementById("coord-filter");
   var coordSaveEl = document.getElementById("coord-save");
@@ -69,6 +70,7 @@
     projectName: "",
     signatureDate: "",
     daysSinceSignature: null,
+    deadlineSummary: "",
     tasks: [],
     events: [],
     warnings: [],
@@ -194,6 +196,9 @@
 
   var DEFAULT_SIGNATURE_DATE = "";
   var PROJECT_SIGNATURE_DATE = Object.assign({}, cfg.datasAssinatura || {});
+  var DEFAULT_DEADLINE_SUMMARY =
+    cleanText(cfg.deadlineSummaryDefault) ||
+    "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
 
   init();
 
@@ -778,7 +783,13 @@
       }
       var label = formatProjectLabel_(code, cleanText(item && item.label));
       var signatureDate = cleanText(item && item.signatureDate);
-      var project = { code: code, label: label, signatureDate: signatureDate };
+      var deadlineSummary = cleanText(item && item.deadlineSummary);
+      var project = {
+        code: code,
+        label: label,
+        signatureDate: signatureDate,
+        deadlineSummary: deadlineSummary || DEFAULT_DEADLINE_SUMMARY
+      };
       normalized.push(project);
       map[code] = project;
 
@@ -960,6 +971,10 @@
       return cleanText(item && (item.signatureDate || item.dataAssinatura || item.assinatura));
     }
 
+    function getDeadlineSummaryFromProject_(item) {
+      return cleanText(item && (item.deadlineSummary || item.prazoResumo || item.prazosResumo));
+    }
+
     function addOrMerge(item, preferIncoming) {
       var code = cleanText(item && item.code);
       if (!code) {
@@ -968,13 +983,15 @@
 
       var incomingLabel = cleanText(item && item.label);
       var incomingSignatureDate = getSignatureDateFromProject_(item);
+      var incomingDeadlineSummary = getDeadlineSummaryFromProject_(item);
       var existing = mergedMap[code];
 
       if (!existing) {
         existing = {
           code: code,
           label: formatProjectLabel_(code, incomingLabel),
-          signatureDate: incomingSignatureDate
+          signatureDate: incomingSignatureDate,
+          deadlineSummary: incomingDeadlineSummary || DEFAULT_DEADLINE_SUMMARY
         };
         mergedMap[code] = existing;
         merged.push(existing);
@@ -986,6 +1003,9 @@
       }
       if (incomingSignatureDate) {
         existing.signatureDate = incomingSignatureDate;
+      }
+      if (incomingDeadlineSummary) {
+        existing.deadlineSummary = incomingDeadlineSummary;
       }
     }
 
@@ -2726,6 +2746,7 @@
     coordState.projectName = cleanText(project.label || targetContractId);
     coordState.signatureDate = cleanText(PROJECT_SIGNATURE_DATE[targetContractId] || "");
     coordState.daysSinceSignature = calculateDaysSinceFromIso_(coordState.signatureDate);
+    coordState.deadlineSummary = cleanText(project.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY;
     coordState.tasks = [];
     coordState.events = [];
     coordState.warnings = [];
@@ -2745,6 +2766,9 @@
     if (coordContractMetaEl) {
       coordContractMetaEl.textContent = "Assinatura contratual: carregando...";
     }
+    if (coordDeadlineMetaEl) {
+      coordDeadlineMetaEl.textContent = "Prazos contratuais (resumo): carregando...";
+    }
     if (coordTaskListEl) {
       coordTaskListEl.innerHTML = '<div class="portfolio-empty">Carregando tarefas do projeto...</div>';
     }
@@ -2762,6 +2786,7 @@
         coordState.projectName = payload.projectName || coordState.projectName;
         coordState.signatureDate = payload.signatureDate || "";
         coordState.daysSinceSignature = payload.daysSinceSignature;
+        coordState.deadlineSummary = payload.deadlineSummary || coordState.deadlineSummary;
         coordState.originalTasksByRef = {};
         payload.tasks.forEach(function (task) {
           coordState.originalTasksByRef[cleanText(task.refEap)] = {
@@ -2788,6 +2813,9 @@
         if (coordContractMetaEl) {
           coordContractMetaEl.textContent = "Assinatura contratual: nao foi possivel carregar.";
         }
+        if (coordDeadlineMetaEl) {
+          coordDeadlineMetaEl.textContent = "Prazos contratuais (resumo): nao foi possivel carregar.";
+        }
         if (coordTaskListEl) {
           coordTaskListEl.innerHTML = '<div class="portfolio-empty">Erro ao carregar tarefas. Tente novamente.</div>';
         }
@@ -2797,6 +2825,7 @@
 
   function closeCoordPanel_() {
     coordState.open = false;
+    coordState.deadlineSummary = "";
     if (coordModalEl) {
       coordModalEl.classList.add("hidden");
       coordModalEl.setAttribute("aria-hidden", "true");
@@ -2806,6 +2835,12 @@
     }
     if (coordEventsListEl) {
       coordEventsListEl.innerHTML = "";
+    }
+    if (coordContractMetaEl) {
+      coordContractMetaEl.textContent = "";
+    }
+    if (coordDeadlineMetaEl) {
+      coordDeadlineMetaEl.textContent = "";
     }
     clearCoordFeedback_();
     document.body.style.overflow = "";
@@ -2877,6 +2912,7 @@
     var warnings = Array.isArray(project.warnings) ? project.warnings : [];
     var contractId = cleanText(project.contractId);
     var signatureDate = cleanText(project.signatureDate);
+    var deadlineSummary = cleanText(project.contractDeadlineSummary || project.deadlineSummary);
     var daysSinceSignature = null;
 
     if (!signatureDate && contractId) {
@@ -2893,11 +2929,19 @@
       daysSinceSignature = calculateDaysSinceFromIso_(signatureDate);
     }
 
+    if (!deadlineSummary && contractId && projectMap[contractId]) {
+      deadlineSummary = cleanText(projectMap[contractId].deadlineSummary);
+    }
+    if (!deadlineSummary) {
+      deadlineSummary = DEFAULT_DEADLINE_SUMMARY;
+    }
+
     return {
       contractId: contractId,
       projectName: cleanText(project.projectName),
       signatureDate: signatureDate,
       daysSinceSignature: daysSinceSignature,
+      deadlineSummary: deadlineSummary,
       summary: project.summary || {},
       tasks: tasks.map(function (task) {
         return {
@@ -2961,6 +3005,11 @@
         cleanText(coordState.signatureDate),
         coordState.daysSinceSignature
       );
+    }
+    if (coordDeadlineMetaEl) {
+      coordDeadlineMetaEl.textContent =
+        "Prazos contratuais (resumo): " +
+        (cleanText(coordState.deadlineSummary) || DEFAULT_DEADLINE_SUMMARY);
     }
 
     renderCoordWarnings_();

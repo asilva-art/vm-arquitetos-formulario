@@ -8,6 +8,20 @@ var CONTROL_DATA_START_ROW = 2;
 var EVENTS_DATA_START_ROW = 2;
 var DEFAULT_TZ = "America/Sao_Paulo";
 
+var DEFAULT_CONTRACT_DEADLINE_SUMMARY =
+  "F1 10DU | F2 5DU | F3 15DU | RAF1/2/3 5/5/10DU | PRE 10DU | RFA 7DU | EXE 15DU | DET 15DU | RDE 10DU | Recesso Natal/Ano Novo nao contabiliza";
+
+var CONTRACT_DEADLINE_LEGEND = [
+  { sigla: "F1/F2/F3", descricao: "Fases I, II e III de Estudos Preliminares + Anteprojeto" },
+  { sigla: "RAF1/2/3", descricao: "Revisao de Anteprojeto nas Fases I, II e III" },
+  { sigla: "PRE", descricao: "Projeto Pre-Executivo" },
+  { sigla: "RFA", descricao: "Revisao Final do Anteprojeto" },
+  { sigla: "EXE", descricao: "Projeto Executivo" },
+  { sigla: "DET", descricao: "Detalhamento" },
+  { sigla: "RDE", descricao: "Revisao de Detalhamento e Executivo" },
+  { sigla: "DU", descricao: "Dias uteis" }
+];
+
 var CONTROL_HEADERS = [
   "KEY",
   "PROJETO",
@@ -889,7 +903,8 @@ function getProjectsForConfig_() {
     projects.push({
       code: map[code].contractId,
       label: map[code].projectName,
-      signatureDate: clean_(map[code].signatureDate)
+      signatureDate: clean_(map[code].signatureDate),
+      deadlineSummary: clean_(map[code].deadlineSummary)
     });
   }
 
@@ -918,7 +933,8 @@ function getProjectMap_() {
       projectName: clean_(PROJECT_MAP[code].projectName),
       contractId: clean_(PROJECT_MAP[code].contractId),
       sectionName: clean_(PROJECT_MAP[code].sectionName),
-      signatureDate: ""
+      signatureDate: "",
+      deadlineSummary: DEFAULT_CONTRACT_DEADLINE_SUMMARY
     };
   }
 
@@ -928,7 +944,8 @@ function getProjectMap_() {
       projectName: item.projectName,
       contractId: item.contractId,
       sectionName: "Secao " + item.contractId,
-      signatureDate: clean_(item.signatureDate)
+      signatureDate: clean_(item.signatureDate),
+      deadlineSummary: clean_(item.deadlineSummary) || DEFAULT_CONTRACT_DEADLINE_SUMMARY
     };
   }
 
@@ -972,6 +989,15 @@ function readProjectsFromContractsSheet_() {
     "nome"
   ]);
   var statusIndex = findHeaderIndex_(headers, ["status", "situacao", "situação", "ativo"]);
+  var deadlineSummaryIndex = findHeaderIndex_(headers, [
+    "prazos resumo",
+    "resumo prazos",
+    "prazo resumo",
+    "prazos contratuais",
+    "resumo clausula prazos",
+    "resumo clausula de prazos",
+    "clausula prazos"
+  ]);
   var signatureDateIndex = findHeaderIndex_(headers, [
     "data assinatura",
     "data de assinatura",
@@ -1016,7 +1042,10 @@ function readProjectsFromContractsSheet_() {
       projectName: projectName,
       contractId: contractId,
       sectionName: "Secao " + contractId,
-      signatureDate: signatureDateIndex >= 0 ? toIsoDateOrBlank_(row[signatureDateIndex]) : ""
+      signatureDate: signatureDateIndex >= 0 ? toIsoDateOrBlank_(row[signatureDateIndex]) : "",
+      deadlineSummary:
+        (deadlineSummaryIndex >= 0 ? clean_(row[deadlineSummaryIndex]) : "") ||
+        DEFAULT_CONTRACT_DEADLINE_SUMMARY
     };
   }
 
@@ -1886,7 +1915,9 @@ function buildConfigPayload_() {
     projects: projects,
     statuses: STATUS_CONTROL,
     refOptions: buildRefOptionsByProject_(),
-    signatureDates: signatureDates
+    signatureDates: signatureDates,
+    deadlineSummaryDefault: DEFAULT_CONTRACT_DEADLINE_SUMMARY,
+    deadlineLegend: CONTRACT_DEADLINE_LEGEND
   };
 }
 
@@ -2057,6 +2088,7 @@ function buildCoordProjectPayload_(contractId) {
 
   var signatureDate = clean_(projectInfo.signatureDate);
   var daysSinceSignature = calculateDaysSinceDate_(signatureDate, new Date());
+  var contractDeadlineSummary = clean_(projectInfo.deadlineSummary) || DEFAULT_CONTRACT_DEADLINE_SUMMARY;
 
   return {
     status: "ok",
@@ -2065,6 +2097,7 @@ function buildCoordProjectPayload_(contractId) {
       projectName: clean_(projectInfo.projectName) || target,
       signatureDate: signatureDate,
       daysSinceSignature: daysSinceSignature,
+      contractDeadlineSummary: contractDeadlineSummary,
       summary: summary,
       tasks: tasks,
       events: readEventsByContract_(eventsSheet, target),

@@ -1146,6 +1146,12 @@ textarea {
   font-weight: 600;
 }
 
+.coord-deadline-meta {
+  font-weight: 500;
+  color: #415869;
+  background: #f4f8fb;
+}
+
 .coord-close {
   width: auto;
   min-width: 120px;
