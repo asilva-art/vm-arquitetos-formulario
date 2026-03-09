@@ -1590,7 +1590,7 @@
       var tasks = Array.isArray(project.tasks) ? project.tasks : [];
       map[contractId] = {
         contractId: contractId,
-        projectName: cleanText(project.projectName),
+        projectName: resolvePreferredProjectName_(contractId, cleanText(project.projectName)),
         signatureDate: cleanText(project && project.signatureDate),
         totals: project.totals || {},
         tasks: tasks.map(function (task) {
@@ -2830,7 +2830,11 @@
         coordState.tasks = payload.tasks;
         coordState.events = payload.events;
         coordState.warnings = payload.warnings;
-        coordState.projectName = payload.projectName || coordState.projectName;
+        coordState.projectName = resolvePreferredProjectName_(
+          coordState.contractId,
+          payload.projectName,
+          coordState.projectName
+        );
         coordState.signatureDate = payload.signatureDate || "";
         coordState.daysSinceSignature = payload.daysSinceSignature;
         coordState.deadlineSummary = payload.deadlineSummary || coordState.deadlineSummary;
@@ -3029,6 +3033,24 @@
       return null;
     }
     return calculateDaysSince_(signature, getCutoffDate_());
+  }
+
+  function resolvePreferredProjectName_(contractId, incomingName, currentName) {
+    var incoming = cleanText(incomingName);
+    var current = cleanText(currentName);
+    var localFromMap = cleanText((projectMap[contractId] || {}).label);
+    var local = localFromMap || current;
+
+    if (!incoming) {
+      return local || contractId;
+    }
+    if (isContractDisplayName_(incoming)) {
+      return incoming;
+    }
+    if (isContractDisplayName_(local)) {
+      return local;
+    }
+    return incoming || local || contractId;
   }
 
   function renderCoordPanel_() {
