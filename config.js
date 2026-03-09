@@ -26,7 +26,7 @@ window.VM_FORM_CONFIG = {
     },
     {
       code: "CT-122",
-      label: "CT-122 | Iara e Tales",
+      label: "CT 20260212-089-122 - Iara e Tales",
       deadlineSummary:
         "4.1 Estudos Preliminares e Anteprojeto: Fase I: Ate 10 dias uteis a partir do pagamento da primeira parcela e levantamento; Fase II: Ate 20 dias uteis a partir da aprovacao do anteprojeto Fase I; 4.2 Revisao Anteprojeto: Fase I: Ate 5 dias uteis; Fase II: Ate 15 dias uteis; 4.3 Pre-Executivo: Ate 7 dias uteis apos aprovacao do Anteprojeto Fase II; 4.4 Revisao Final do Anteprojeto: Ate 10 dias uteis apos aprovacao do pre-executivo; 4.5 Projeto Executivo: Ate 15 dias uteis entrega da revisao final do anteprojeto; 4.6 Detalhamento: Ate 20 dias uteis apos entrega do Projeto Executivo. 4.7 Revisao de detalhamento e executivo: 7 dias uteis. Nao sao contabilizados os prazos no periodo de recesso, entre o Natal e Ano Novo."
     },
