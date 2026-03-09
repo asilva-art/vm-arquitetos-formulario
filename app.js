@@ -86,112 +86,11 @@
     OFFLINE_QUEUE: "vm_form_offline_queue_v1",
     EDIT_CONTEXT: "vm_form_edit_context_v1"
   };
+  var JSONP_TIMEOUT_MS = 20000;
 
   var projectMap = {};
   var projectList = [];
   var refOptionsByProject = normalizeRefOptions(cfg.refOptions || {});
-
-  var LOCAL_EAP_TEMPLATE = [
-    { wbs: "1.1.1", phase: "Estudos Preliminares", task: "Elaboracao do Briefing Documentado" },
-    { wbs: "1.1.2", phase: "Estudos Preliminares", task: "Geracao da Analise do Terreno" },
-    { wbs: "1.1.3", phase: "Estudos Preliminares", task: "Levantamento da Analise Legal" },
-    { wbs: "2.1.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Estudo de Implantacao" },
-    { wbs: "2.1.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Planta de Layout" },
-    { wbs: "2.2.1", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Execucao de Revisoes (ate 2 rodadas)" },
-    { wbs: "2.2.2", phase: "Anteprojeto - Etapa I (Implantacao e Layout)", task: "Aprovacao do Layout" },
-    { wbs: "3.1.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Modelagem de Imagens 3D Externas" },
-    { wbs: "3.1.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Pre-selecao de Materiais Externos" },
-    { wbs: "3.1.3", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Estudo de Alternativa de Volumetria (se solicitada)" },
-    { wbs: "3.2.1", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Execucao de Revisoes (ate 2 rodadas)" },
-    { wbs: "3.2.2", phase: "Anteprojeto - Etapa II (Volumetria e Materiais Externos)", task: "Aprovacao da Volumetria e Materiais Externos" },
-    { wbs: "4.1.1", phase: "Projeto Legal", task: "Elaboracao do Projeto para Aprovacao na Prefeitura" },
-    { wbs: "4.2.1", phase: "Projeto Legal", task: "Acompanhamento do Protocolo na Prefeitura" },
-    { wbs: "4.2.2", phase: "Projeto Legal", task: "Projeto Legal Aprovado" },
-    { wbs: "5.1.1", phase: "Anteprojeto - Etapa III (Interiores)", task: "Modelagem de Imagens 3D Internas" },
-    { wbs: "5.1.2", phase: "Anteprojeto - Etapa III (Interiores)", task: "Pre-selecao de Materiais Internos" },
-    { wbs: "5.1.3", phase: "Anteprojeto - Etapa III (Interiores)", task: "Estudo de Alternativa por Ambiente (se solicitada)" },
-    { wbs: "5.2.1", phase: "Anteprojeto - Etapa III (Interiores)", task: "Execucao de Revisoes (ate 2 rodadas)" },
-    { wbs: "5.2.2", phase: "Anteprojeto - Etapa III (Interiores)", task: "Aprovacao dos Interiores" },
-    { wbs: "6.1.1", phase: "Projeto Pre-Executivo", task: "Planta Layout Cotada" },
-    { wbs: "6.1.2", phase: "Projeto Pre-Executivo", task: "Detalhamento de Pedras" },
-    { wbs: "6.1.3", phase: "Projeto Pre-Executivo", task: "Quantitativo de Revestimentos" },
-    { wbs: "6.1.4", phase: "Projeto Pre-Executivo", task: "Lista de Loucas e Metais" },
-    { wbs: "7.1.1", phase: "Definicao de Materiais e Revisao 3D", task: "Acompanhamento em Lojas (ate 7 visitas)" },
-    { wbs: "7.2.1", phase: "Definicao de Materiais e Revisao 3D", task: "Execucao da Revisao Final 3D" },
-    { wbs: "7.2.2", phase: "Definicao de Materiais e Revisao 3D", task: "Aprovacao Final 3D" },
-    { wbs: "8.1.1", phase: "Projeto Executivo", task: "Planta de Situacao" },
-    { wbs: "8.1.2", phase: "Projeto Executivo", task: "Planta de Implantacao" },
-    { wbs: "8.1.3", phase: "Projeto Executivo", task: "Planta de Cobertura" },
-    { wbs: "8.1.4", phase: "Projeto Executivo", task: "Cortes" },
-    { wbs: "8.1.5", phase: "Projeto Executivo", task: "Fachadas" },
-    { wbs: "8.2.1", phase: "Projeto Executivo", task: "Pontos Eletricos" },
-    { wbs: "8.2.2", phase: "Projeto Executivo", task: "Pontos Hidraulicos" },
-    { wbs: "8.2.3", phase: "Projeto Executivo", task: "Planta de Forro" },
-    { wbs: "8.2.4", phase: "Projeto Executivo", task: "Planta de Piso" },
-    { wbs: "8.2.5", phase: "Projeto Executivo", task: "Projeto Luminotecnico" },
-    { wbs: "8.3.1", phase: "Projeto Executivo", task: "Detalhamento de Escadas e Rampas" },
-    { wbs: "8.3.2", phase: "Projeto Executivo", task: "Detalhamento de Esquadrias" },
-    { wbs: "8.3.3", phase: "Projeto Executivo", task: "Detalhes Construtivos" },
-    { wbs: "8.3.4", phase: "Projeto Executivo", task: "Detalhamento de Gradil" },
-    { wbs: "8.3.5", phase: "Projeto Executivo", task: "Detalhamento de Areas Molhadas" },
-    { wbs: "8.3.6", phase: "Projeto Executivo", task: "Detalhamento de Guarda-corpo" },
-    { wbs: "9.1.1", phase: "Detalhamentos Complementares", task: "Detalhamento de Vidros e Espelhos" },
-    { wbs: "9.1.2", phase: "Detalhamentos Complementares", task: "Design e Detalhamento de Moveis" },
-    { wbs: "9.1.3", phase: "Detalhamentos Complementares", task: "Detalhamentos Complementares Especificos" },
-    { wbs: "10.1.1", phase: "Acompanhamento de Obra e Producao", task: "Realizacao de Visitas Tecnicas em Obra (2 visitas)" },
-    { wbs: "10.2.1", phase: "Acompanhamento de Obra e Producao", task: "Realizacao de Acompanhamento de Producao (1 visita)" }
-  ];
-
-  var LOCAL_EAP_NETWORK = {
-    "1.1.1": { du: 3, deps: [] },
-    "1.1.2": { du: 3, deps: [] },
-    "1.1.3": { du: 2, deps: [] },
-    "2.1.1": { du: 4, deps: ["1.1.1", "1.1.2", "1.1.3"] },
-    "2.1.2": { du: 3, deps: ["2.1.1"] },
-    "2.2.1": { du: 2, deps: ["2.1.2"] },
-    "2.2.2": { du: 1, deps: ["2.2.1"] },
-    "3.1.1": { du: 4, deps: ["2.2.2"] },
-    "3.1.2": { du: 2, deps: ["2.2.2"] },
-    "3.1.3": { du: 2, deps: ["2.2.2"] },
-    "3.2.1": { du: 2, deps: ["3.1.1", "3.1.2", "3.1.3"] },
-    "3.2.2": { du: 1, deps: ["3.2.1"] },
-    "4.1.1": { du: 5, deps: ["3.2.2"] },
-    "4.2.1": { du: 3, deps: ["4.1.1"] },
-    "4.2.2": { du: 1, deps: ["4.2.1"] },
-    "5.1.1": { du: 5, deps: ["3.2.2"] },
-    "5.1.2": { du: 3, deps: ["3.2.2"] },
-    "5.1.3": { du: 3, deps: ["3.2.2"] },
-    "5.2.1": { du: 2, deps: ["5.1.1", "5.1.2", "5.1.3"] },
-    "5.2.2": { du: 1, deps: ["5.2.1"] },
-    "6.1.1": { du: 3, deps: ["5.2.2"] },
-    "6.1.2": { du: 2, deps: ["5.2.2"] },
-    "6.1.3": { du: 2, deps: ["5.2.2"] },
-    "6.1.4": { du: 2, deps: ["5.2.2"] },
-    "7.1.1": { du: 5, deps: ["6.1.1", "6.1.2", "6.1.3", "6.1.4"] },
-    "7.2.1": { du: 3, deps: ["7.1.1"] },
-    "7.2.2": { du: 1, deps: ["7.2.1"] },
-    "8.1.1": { du: 2, deps: ["7.2.2"] },
-    "8.1.2": { du: 2, deps: ["7.2.2"] },
-    "8.1.3": { du: 2, deps: ["7.2.2"] },
-    "8.1.4": { du: 3, deps: ["7.2.2"] },
-    "8.1.5": { du: 3, deps: ["7.2.2"] },
-    "8.2.1": { du: 2, deps: ["7.2.2"] },
-    "8.2.2": { du: 2, deps: ["7.2.2"] },
-    "8.2.3": { du: 2, deps: ["7.2.2"] },
-    "8.2.4": { du: 2, deps: ["7.2.2"] },
-    "8.2.5": { du: 2, deps: ["7.2.2"] },
-    "8.3.1": { du: 2, deps: ["8.1.4"] },
-    "8.3.2": { du: 2, deps: ["8.1.5"] },
-    "8.3.3": { du: 3, deps: ["8.1.4", "8.1.5"] },
-    "8.3.4": { du: 2, deps: ["8.3.3"] },
-    "8.3.5": { du: 2, deps: ["8.2.2", "8.2.4"] },
-    "8.3.6": { du: 2, deps: ["8.3.3"] },
-    "9.1.1": { du: 2, deps: ["8.3.2"] },
-    "9.1.2": { du: 4, deps: ["7.2.2"] },
-    "9.1.3": { du: 2, deps: ["8.3.3"] },
-    "10.1.1": { du: 6, deps: ["8.1.2", "8.2.1", "8.2.2", "8.2.3", "8.2.4", "8.2.5"] },
-    "10.2.1": { du: 3, deps: ["10.1.1", "9.1.2"] }
-  };
 
   var DEFAULT_SIGNATURE_DATE = "";
   var PROJECT_SIGNATURE_DATE = Object.assign({}, cfg.datasAssinatura || {});
@@ -977,19 +876,7 @@
       ];
     }
 
-    if (!/^CT-\d+$/i.test(projectCode)) {
-      return [];
-    }
-
-    var compact = String(projectCode).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    return LOCAL_EAP_TEMPLATE.map(function (item) {
-      var value = compact + "-WBS-" + String(item.wbs).replace(/[^A-Za-z0-9]+/g, "_");
-      return {
-        value: value,
-        label: value + " | " + item.phase + " | " + item.task,
-        status: "NAO INICIADA"
-      };
-    });
+    return [];
   }
 
   function mergeProjects_(localProjects, serverProjects) {
@@ -1523,7 +1410,7 @@
     script.onerror = finish;
     document.body.appendChild(script);
 
-    setTimeout(finish, 12000);
+    setTimeout(finish, JSONP_TIMEOUT_MS);
   }
 
   function loadPpmSnapshotFromServer() {
@@ -1574,7 +1461,7 @@
     });
     script.onerror = finish;
     document.body.appendChild(script);
-    setTimeout(finish, 12000);
+    setTimeout(finish, JSONP_TIMEOUT_MS);
   }
 
   function normalizePpmSnapshot_(payload) {
@@ -1789,6 +1676,13 @@
       return;
     }
 
+    var professional = cleanText((professionalEl || {}).value);
+    if (!professional) {
+      historyItems = [];
+      renderHistoryPanel_();
+      return;
+    }
+
     var appsScriptUrl = cleanText(cfg.appsScriptUrl);
     if (!appsScriptUrl || appsScriptUrl.indexOf("COLE_AQUI") >= 0) {
       historyItems = [];
@@ -1831,13 +1725,10 @@
     var params = {
       action: "history",
       limit: 10,
+      professional: professional,
       callback: callbackName,
       _: Date.now()
     };
-    var professional = cleanText((professionalEl || {}).value);
-    if (professional) {
-      params.professional = professional;
-    }
 
     script.async = true;
     script.src = buildUrlWithParams(appsScriptUrl, params);
@@ -1847,7 +1738,7 @@
       finish();
     };
     document.body.appendChild(script);
-    setTimeout(finish, 12000);
+    setTimeout(finish, JSONP_TIMEOUT_MS);
   }
 
   function renderHistoryPanel_() {
@@ -1883,6 +1774,9 @@
           '<strong>' + escapeHtml(cleanText(item.formId) || "Sem ID") + "</strong>",
           '<span>' + escapeHtml(cleanText(item.dateBr) || "-") + " | " + escapeHtml(cleanText(item.professional) || "-") + "</span>",
           "</div>",
+          (cleanText(item.submittedAtBr)
+            ? '<p class="history-submitted">Enviado em: ' + escapeHtml(cleanText(item.submittedAtBr)) + "</p>"
+            : ""),
           '<p>' + escapeHtml(String(projects.length)) + " projeto(s) neste envio.</p>",
           "<ul>" + preview + more + "</ul>",
           "</article>"
@@ -2270,125 +2164,84 @@
   function buildProjectSchedule_(projectCode, optionList, snapshotProject) {
     var snapshotTasks = snapshotProject && Array.isArray(snapshotProject.tasks) ? snapshotProject.tasks : [];
     if (snapshotTasks.length) {
-      return buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks, snapshotProject);
+      return buildProjectScheduleFromSnapshot_(snapshotTasks);
     }
 
-    var signatureDate = getProjectSignatureDate_(projectCode, snapshotProject);
-    var statusByRef = buildStatusMapFromOptions_(optionList);
-    var scheduleByWbs = {};
-    var tasks = [];
-
-    LOCAL_EAP_TEMPLATE.forEach(function (item) {
-      var rule = LOCAL_EAP_NETWORK[item.wbs] || { du: 1, deps: [] };
-      var refEap = buildRefFromWbsForFront_(projectCode, item.wbs);
-      var status = statusByRef[refEap] || "CONCLUIDA";
-      var dates = planTaskDates_(signatureDate, rule, scheduleByWbs);
-
-      var task = {
-        refEap: refEap,
-        wbs: item.wbs,
-        phase: item.phase,
-        task: item.task,
-        status: status,
-        plannedStart: dates.start,
-        plannedEnd: dates.end
-      };
-
-      scheduleByWbs[item.wbs] = task;
-      tasks.push(task);
-    });
-
-    return tasks;
+    return buildProjectScheduleFromOptions_(optionList);
   }
 
-  function buildStatusMapFromOptions_(optionList) {
-    var map = {};
+  function buildProjectScheduleFromOptions_(optionList) {
+    var tasks = [];
     (optionList || []).forEach(function (item) {
-      var key = cleanText(item && item.value);
-      if (!key) {
+      var refEap = cleanText(item && item.value);
+      if (!refEap) {
         return;
       }
-      map[key] = normalizePortfolioStatus_(item && item.status);
-    });
-    return map;
-  }
 
-  function buildProjectScheduleFromSnapshot_(projectCode, snapshotTasks, snapshotProject) {
-    var signatureDate = getProjectSignatureDate_(projectCode, snapshotProject);
-    var scheduleByWbs = {};
-    var taskByRef = {};
-    var tasks = [];
-
-    LOCAL_EAP_TEMPLATE.forEach(function (item) {
-      var rule = LOCAL_EAP_NETWORK[item.wbs] || { du: 1, deps: [] };
-      var refEap = buildRefFromWbsForFront_(projectCode, item.wbs);
-      var dates = planTaskDates_(signatureDate, rule, scheduleByWbs);
-
-      var task = {
+      var parsed = parseRefOptionLabel_(cleanText(item && item.label));
+      tasks.push({
         refEap: refEap,
-        wbs: item.wbs,
-        phase: item.phase,
-        task: item.task,
-        status: "NAO INICIADA",
-        plannedStart: dates.start,
-        plannedEnd: dates.end,
+        phase: parsed.phase,
+        task: parsed.task,
+        status: normalizePortfolioStatus_(item && item.status),
+        plannedStart: null,
+        plannedEnd: null,
         realStart: null,
         realEnd: null,
         lastRecordDate: null,
         updatedAt: null,
         blocked: false,
         blockReason: ""
-      };
-
-      scheduleByWbs[item.wbs] = task;
-      taskByRef[refEap] = task;
-      tasks.push(task);
-    });
-
-    snapshotTasks.forEach(function (snapshotTask) {
-      var refEap = cleanText(snapshotTask && snapshotTask.refEap);
-      if (!refEap) {
-        return;
-      }
-
-      var target = taskByRef[refEap];
-      if (!target) {
-        target = {
-          refEap: refEap,
-          wbs: extractWbsFromRef_(refEap),
-          phase: "",
-          task: "",
-          status: "NAO INICIADA",
-          plannedStart: null,
-          plannedEnd: null,
-          realStart: null,
-          realEnd: null,
-          lastRecordDate: null,
-          updatedAt: null,
-          blocked: false,
-          blockReason: ""
-        };
-        taskByRef[refEap] = target;
-        tasks.push(target);
-      }
-
-      target.phase = cleanText(snapshotTask.phase) || target.phase;
-      target.task = cleanText(snapshotTask.task) || target.task;
-      target.status = normalizePortfolioStatus_(snapshotTask.status);
-      target.plannedStart = parseDateFlexible_(snapshotTask.plannedStart) || target.plannedStart;
-      target.plannedEnd = parseDateFlexible_(snapshotTask.plannedEnd) || target.plannedEnd;
-      target.realStart = parseDateFlexible_(snapshotTask.realStart);
-      target.realEnd = parseDateFlexible_(snapshotTask.realEnd);
-      target.lastRecordDate = parseDateFlexible_(snapshotTask.lastRecordDate);
-      target.updatedAt = parseDateFlexible_(snapshotTask.updatedAt);
-      target.blocked = Boolean(snapshotTask && snapshotTask.blocked);
-      target.blockReason = cleanText(snapshotTask && snapshotTask.blockReason);
+      });
     });
 
     tasks.sort(function (a, b) {
       return String(a.refEap).localeCompare(String(b.refEap));
     });
     return tasks;
+  }
+
+  function buildProjectScheduleFromSnapshot_(snapshotTasks) {
+    var tasks = [];
+    (snapshotTasks || []).forEach(function (snapshotTask) {
+      var refEap = cleanText(snapshotTask && snapshotTask.refEap);
+      if (!refEap) {
+        return;
+      }
+      tasks.push({
+        refEap: refEap,
+        phase: cleanText(snapshotTask && snapshotTask.phase),
+        task: cleanText(snapshotTask && snapshotTask.task),
+        status: normalizePortfolioStatus_(snapshotTask && snapshotTask.status),
+        plannedStart: parseDateFlexible_(snapshotTask && snapshotTask.plannedStart),
+        plannedEnd: parseDateFlexible_(snapshotTask && snapshotTask.plannedEnd),
+        realStart: parseDateFlexible_(snapshotTask && snapshotTask.realStart),
+        realEnd: parseDateFlexible_(snapshotTask && snapshotTask.realEnd),
+        lastRecordDate: parseDateFlexible_(snapshotTask && snapshotTask.lastRecordDate),
+        updatedAt: parseDateFlexible_(snapshotTask && snapshotTask.updatedAt),
+        blocked: Boolean(snapshotTask && snapshotTask.blocked),
+        blockReason: cleanText(snapshotTask && snapshotTask.blockReason)
+      });
+    });
+
+    tasks.sort(function (a, b) {
+      return String(a.refEap).localeCompare(String(b.refEap));
+    });
+    return tasks;
+  }
+
+  function parseRefOptionLabel_(label) {
+    var text = cleanText(label);
+    if (!text) {
+      return { phase: "", task: "" };
+    }
+    var parts = text.split("|").map(function (item) {
+      return cleanText(item);
+    });
+    return {
+      phase: parts.length > 1 ? parts[1] : "",
+      task: parts.length > 2 ? parts.slice(2).join(" | ") : ""
+    };
   }
 
   function getProjectSignatureDate_(projectCode, snapshotProject, project) {
@@ -2426,47 +2279,6 @@
       return 0;
     }
     return Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  }
-
-  function buildRefFromWbsForFront_(projectCode, wbs) {
-    var compact = String(projectCode || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    var key = String(wbs || "").replace(/[^A-Za-z0-9]+/g, "_");
-    return compact + "-WBS-" + key;
-  }
-
-  function extractWbsFromRef_(refEap) {
-    var text = cleanText(refEap);
-    var match = text.match(/-WBS-([0-9_]+)/i);
-    if (!match) {
-      return "";
-    }
-    return String(match[1]).replace(/_/g, ".");
-  }
-
-  function planTaskDates_(projectStartDate, rule, scheduleByWbs) {
-    var deps = Array.isArray(rule.deps) ? rule.deps : [];
-    var duration = Math.max(Number(rule.du || 1), 1);
-    var start = cloneDate_(projectStartDate);
-
-    if (deps.length) {
-      var maxPredEnd = null;
-      deps.forEach(function (depWbs) {
-        var depTask = scheduleByWbs[depWbs];
-        if (!depTask || !depTask.plannedEnd) {
-          return;
-        }
-        if (!maxPredEnd || depTask.plannedEnd.getTime() > maxPredEnd.getTime()) {
-          maxPredEnd = depTask.plannedEnd;
-        }
-      });
-      if (maxPredEnd) {
-        start = nextBusinessDay_(addDays_(maxPredEnd, 1));
-      }
-    }
-
-    start = nextBusinessDay_(start);
-    var end = addBusinessDays_(start, duration - 1);
-    return { start: start, end: end };
   }
 
   function buildPortfolioMetricsFromSchedule_(schedule, cutoffDate) {
@@ -2953,7 +2765,7 @@
           reject(new Error("Tempo de resposta excedido ao carregar configuracoes."));
           finish();
         }
-      }, 12000);
+      }, JSONP_TIMEOUT_MS);
     });
   }
 
@@ -4587,32 +4399,6 @@
     var next = cloneDate_(date);
     next.setDate(next.getDate() + Number(days || 0));
     return next;
-  }
-
-  function isBusinessDay_(date) {
-    var day = date.getDay();
-    return day !== 0 && day !== 6;
-  }
-
-  function nextBusinessDay_(date) {
-    var cursor = cloneDate_(date);
-    while (!isBusinessDay_(cursor)) {
-      cursor = addDays_(cursor, 1);
-    }
-    return cursor;
-  }
-
-  function addBusinessDays_(date, businessDays) {
-    var total = Math.max(Number(businessDays || 0), 0);
-    var cursor = nextBusinessDay_(date);
-    var count = 0;
-    while (count < total) {
-      cursor = addDays_(cursor, 1);
-      if (isBusinessDay_(cursor)) {
-        count += 1;
-      }
-    }
-    return cursor;
   }
 
   function formatDateBr_(date) {

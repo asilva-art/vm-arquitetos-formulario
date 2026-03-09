@@ -3,10 +3,13 @@ var EAP_SHEET_NAME = "📅 EAP - LINHA DE BASE";
 var CONTROL_SHEET_NAME = "📌 CONTROLE_EAP_ATUAL";
 var EVENTS_SHEET_NAME = "📍 EVENTOS_COORDENACAO";
 var EXEC_DATA_START_ROW = 5;
+var EXEC_COLUMNS = 17;
 var EAP_DATA_START_ROW = 4;
 var CONTROL_DATA_START_ROW = 2;
 var EVENTS_DATA_START_ROW = 2;
 var DEFAULT_TZ = "America/Sao_Paulo";
+var RECESS_START_MONTH_DAY = "12-25";
+var RECESS_END_MONTH_DAY = "01-01";
 
 var DEFAULT_CONTRACT_DEADLINE_SUMMARY = "";
 
@@ -85,11 +88,120 @@ var STATUS_CONTROL = {
 };
 
 var PROJECT_MAP = {
-  "CT-117": { projectName: "CT 20251212-058-117 - Paulo Henrique", contractId: "CT-117", sectionName: "Secao CT-117" },
-  "CT-119": { projectName: "CT 20251216-824-119 - Karina e Toshi", contractId: "CT-119", sectionName: "Secao CT-119" },
-  "CT-120": { projectName: "CT 20251222-367-120 - Alliance Health", contractId: "CT-120", sectionName: "Secao CT-120" },
-  "CT-121": { projectName: "CT 20260120-570-121 - Valdete e Carlos", contractId: "CT-121", sectionName: "Secao CT-121" },
-  "CT-122": { projectName: "CT 20260212-089-122 - Iara e Tales", contractId: "CT-122", sectionName: "Secao CT-122" },
+  "CT-117": {
+    projectName: "CT 20251212-058-117 - Paulo Henrique",
+    contractId: "CT-117",
+    sectionName: "Secao CT-117",
+    signatureDate: "2025-12-12"
+  },
+  "CT-119": {
+    projectName: "CT 20251216-824-119 - Karina e Toshi",
+    contractId: "CT-119",
+    sectionName: "Secao CT-119",
+    signatureDate: "2025-12-16"
+  },
+  "CT-120": {
+    projectName: "CT 20251222-367-120 - Alliance Health",
+    contractId: "CT-120",
+    sectionName: "Secao CT-120",
+    signatureDate: "2025-12-17"
+  },
+  "CT-121": {
+    projectName: "CT 20260120-570-121 - Valdete e Carlos",
+    contractId: "CT-121",
+    sectionName: "Secao CT-121",
+    signatureDate: "2025-12-18"
+  },
+  "CT-122": {
+    projectName: "CT 20260212-089-122 - Iara e Tales",
+    contractId: "CT-122",
+    sectionName: "Secao CT-122",
+    signatureDate: "2026-02-12"
+  },
+  "CT-123": {
+    projectName: "CT 20250108-525-097 - Katia e Luis",
+    contractId: "CT-123",
+    sectionName: "Secao CT-123",
+    signatureDate: "2025-01-08"
+  },
+  "CT-124": {
+    projectName: "CT 20250127-254-098 - Monica e Oswaldo",
+    contractId: "CT-124",
+    sectionName: "Secao CT-124",
+    signatureDate: "2025-01-27"
+  },
+  "CT-125": {
+    projectName: "CT 20250212-851-099 - Carina e Eider",
+    contractId: "CT-125",
+    sectionName: "Secao CT-125",
+    signatureDate: "2025-02-12"
+  },
+  "CT-126": {
+    projectName: "CT 20250214-101-100 - Rachel e Matheus",
+    contractId: "CT-126",
+    sectionName: "Secao CT-126",
+    signatureDate: "2025-02-14"
+  },
+  "CT-127": {
+    projectName: "CT 20250312-400-101 - Natalia e Igor",
+    contractId: "CT-127",
+    sectionName: "Secao CT-127",
+    signatureDate: "2025-03-12"
+  },
+  "CT-128": {
+    projectName: "CT 20250404-857-102 - Priscila e Tiago",
+    contractId: "CT-128",
+    sectionName: "Secao CT-128",
+    signatureDate: "2025-04-04"
+  },
+  "CT-129": {
+    projectName: "CT 20250415-042-103 - Mariana e Igor",
+    contractId: "CT-129",
+    sectionName: "Secao CT-129",
+    signatureDate: "2025-04-15"
+  },
+  "CT-130": {
+    projectName: "CT 20250515-104 - Paula e Renato",
+    contractId: "CT-130",
+    sectionName: "Secao CT-130",
+    signatureDate: "2025-05-15"
+  },
+  "CT-131": {
+    projectName: "CT 20250515-083-105 - Priscila e Ricardo",
+    contractId: "CT-131",
+    sectionName: "Secao CT-131",
+    signatureDate: "2025-05-15"
+  },
+  "CT-132": {
+    projectName: "CT 20250523-065-106 - Fernanda e Henrique",
+    contractId: "CT-132",
+    sectionName: "Secao CT-132",
+    signatureDate: "2025-05-23"
+  },
+  "CT-133": {
+    projectName: "CT 20250902-054-112 - Daniela e Rafael",
+    contractId: "CT-133",
+    sectionName: "Secao CT-133",
+    signatureDate: "2025-09-02"
+  },
+  "CT-134": {
+    projectName: "CT 20250626-990-109 - Patricia e Alessandro",
+    contractId: "CT-134",
+    sectionName: "Secao CT-134",
+    signatureDate: "2025-06-26"
+  },
+  "CT-135": {
+    projectName: "CT 20250604-000-108 - Vanessa e Breno",
+    contractId: "CT-135",
+    sectionName: "Secao CT-135",
+    signatureDate: "2025-06-04"
+  },
+  "CT-136": {
+    projectName: "CT 20251126-086-115 - Maira e Eduardo",
+    contractId: "CT-136",
+    sectionName: "Secao CT-136",
+    signatureDate: "2025-11-26"
+  },
   "ADMIN-INTERNO": { projectName: "Administrativo/Interno", contractId: "ADMIN-INTERNO", sectionName: "Secao Administrativo/Interno" }
 };
 var CONTRACTS_SHEET_NAME = "CONTRATOS";
@@ -320,11 +432,14 @@ function doPost(e) {
     var executionRows = buildExecutionRows_(records, input, formId);
 
     if (editFormId) {
+      var preservedControlRows = cloneControlRows_(controlContext.rows);
       replaceExecutionRowsByFormId_(executionSheet, editFormId, executionRows);
-      controlContext.rows = rebuildControlFromExecution_(executionSheet);
+      controlContext.rows = rebuildControlFromExecution_(executionSheet, {
+        preserveRows: preservedControlRows
+      });
     } else {
       var executionStartRow = Math.max(executionSheet.getLastRow() + 1, EXEC_DATA_START_ROW);
-      executionSheet.getRange(executionStartRow, 1, executionRows.length, 17).setValues(executionRows);
+      executionSheet.getRange(executionStartRow, 1, executionRows.length, EXEC_COLUMNS).setValues(executionRows);
 
       var syncMeta = {
         dateBr: input.dateBr,
@@ -491,7 +606,17 @@ function getExecutionSheet_() {
   if (!sheet) {
     throw new Error("Aba " + EXEC_SHEET_NAME + " nao encontrada.");
   }
+  ensureExecutionSheetReady_(sheet);
   return sheet;
+}
+
+function ensureExecutionSheetReady_(sheet) {
+  if (!sheet) {
+    throw new Error("Aba de execucao nao encontrada.");
+  }
+  if (sheet.getLastColumn() < EXEC_COLUMNS) {
+    throw new Error("Aba " + EXEC_SHEET_NAME + " com estrutura invalida: minimo de " + EXEC_COLUMNS + " colunas.");
+  }
 }
 
 function getEapSheet_() {
@@ -545,7 +670,7 @@ function clearExecutionData_(sheet) {
     return 0;
   }
   var rowsToClear = lastRow - EXEC_DATA_START_ROW + 1;
-  sheet.getRange(EXEC_DATA_START_ROW, 1, rowsToClear, 17).clearContent();
+  sheet.getRange(EXEC_DATA_START_ROW, 1, rowsToClear, EXEC_COLUMNS).clearContent();
   return rowsToClear;
 }
 
@@ -609,6 +734,99 @@ function writeControlRows_(sheet, rows) {
 
   if (rows && rows.length) {
     sheet.getRange(CONTROL_DATA_START_ROW, 1, rows.length, CONTROL_HEADERS.length).setValues(rows);
+  }
+}
+
+function cloneControlRows_(rows) {
+  var source = Array.isArray(rows) ? rows : [];
+  var result = [];
+  var i;
+  for (i = 0; i < source.length; i += 1) {
+    result.push(source[i].slice(0, CONTROL_HEADERS.length));
+  }
+  return result;
+}
+
+function mergePreservedControlRows_(baseRows, preservedRows) {
+  var merged = cloneControlRows_(baseRows);
+  var preserved = cloneControlRows_(preservedRows);
+  var byKey = {};
+  var i;
+
+  for (i = 0; i < merged.length; i += 1) {
+    byKey[makeControlKey_(merged[i][2], merged[i][3])] = i;
+  }
+
+  for (i = 0; i < preserved.length; i += 1) {
+    var row = preserved[i];
+    var key = makeControlKey_(row[2], row[3]);
+    if (!clean_(row[2]) || !clean_(row[3])) {
+      continue;
+    }
+
+    if (byKey[key] >= 0) {
+      merged[byKey[key]] = row.slice(0, CONTROL_HEADERS.length);
+      merged[byKey[key]][0] = key;
+    } else {
+      row[0] = key;
+      merged.push(row.slice(0, CONTROL_HEADERS.length));
+    }
+  }
+
+  return merged;
+}
+
+function preserveCoordinatorDataForUntouchedRows_(rows, preservedRows, touchedByExecution) {
+  var source = cloneControlRows_(preservedRows);
+  var byKey = {};
+  var i;
+
+  for (i = 0; i < source.length; i += 1) {
+    var row = source[i];
+    byKey[makeControlKey_(row[2], row[3])] = row;
+  }
+
+  for (i = 0; i < rows.length; i += 1) {
+    var current = rows[i];
+    var key = makeControlKey_(current[2], current[3]);
+    if (touchedByExecution[key]) {
+      continue;
+    }
+    var preserved = byKey[key];
+    if (!preserved) {
+      continue;
+    }
+
+    // Mantem configuracoes de coordenacao em tarefas nao tocadas por este replay.
+    current[6] = clean_(preserved[6]);  // PRAZO DU
+    current[7] = clean_(preserved[7]);  // INICIO PLANEJADO
+    current[8] = clean_(preserved[8]);  // FIM PLANEJADO
+    current[9] = clean_(preserved[9]);  // STATUS
+    current[10] = clean_(preserved[10]); // RESPONSAVEL
+    current[11] = clean_(preserved[11]); // INICIO REAL
+    current[12] = clean_(preserved[12]); // FIM REAL
+    current[13] = toNumberOrBlank_(preserved[13], 0); // % REAL
+    current[14] = clean_(preserved[14]); // DIAS DESVIO
+    current[15] = clean_(preserved[15]); // BLOQUEIO
+    current[16] = clean_(preserved[16]); // DESC BLOQUEIO
+    current[17] = clean_(preserved[17]); // ATUALIZADO EM
+    current[18] = clean_(preserved[18]); // DATA ULT. REGISTRO
+    current[19] = clean_(preserved[19]); // ID ULT. ENVIO
+    current[20] = clean_(preserved[20]); // OBS ULT. REGISTRO
+    current[21] = clean_(preserved[21]); // ORIGEM
+    current[22] = clean_(preserved[22]); // PREDECESSORA REF
+    current[23] = clean_(preserved[23]) || "FS"; // RELACAO DEP
+    current[24] = toNumberOrBlank_(preserved[24], 0); // LAG DU
+  }
+}
+
+function applyCanonicalProjectNamesToControlRows_(rows, map) {
+  var projectMap = map || getProjectMap_();
+  var i;
+  for (i = 0; i < rows.length; i += 1) {
+    var contractId = clean_(rows[i][2]);
+    rows[i][1] = resolveCanonicalProjectName_(contractId, rows[i][1], projectMap);
+    rows[i][0] = makeControlKey_(contractId, rows[i][3]);
   }
 }
 
@@ -923,6 +1141,7 @@ function getProjectMap_() {
   var code;
   var i;
   var discovered = readProjectsFromContractsSheet_();
+  var hints = readProjectHintsFromOperationalSheets_();
 
   for (code in PROJECT_MAP) {
     if (!Object.prototype.hasOwnProperty.call(PROJECT_MAP, code)) {
@@ -932,20 +1151,40 @@ function getProjectMap_() {
       projectName: clean_(PROJECT_MAP[code].projectName),
       contractId: clean_(PROJECT_MAP[code].contractId),
       sectionName: clean_(PROJECT_MAP[code].sectionName),
-      signatureDate: "",
-      deadlineSummary: ""
+      signatureDate: clean_(PROJECT_MAP[code].signatureDate),
+      deadlineSummary: clean_(PROJECT_MAP[code].deadlineSummary)
     };
   }
 
   for (i = 0; i < discovered.length; i += 1) {
     var item = discovered[i];
+    var existing = map[item.contractId] || {};
     map[item.contractId] = {
-      projectName: item.projectName,
+      projectName: resolveCanonicalProjectName_(item.contractId, item.projectName, map),
       contractId: item.contractId,
       sectionName: "Secao " + item.contractId,
-      signatureDate: clean_(item.signatureDate),
-      deadlineSummary: clean_(item.deadlineSummary)
+      signatureDate: clean_(item.signatureDate) || clean_(existing.signatureDate),
+      deadlineSummary: clean_(item.deadlineSummary) || clean_(existing.deadlineSummary)
     };
+  }
+
+  for (i = 0; i < hints.length; i += 1) {
+    var hint = hints[i];
+    var prev = map[hint.contractId] || {};
+    map[hint.contractId] = {
+      projectName: resolveCanonicalProjectName_(hint.contractId, hint.projectName || prev.projectName, map),
+      contractId: hint.contractId,
+      sectionName: "Secao " + hint.contractId,
+      signatureDate: clean_(prev.signatureDate),
+      deadlineSummary: clean_(prev.deadlineSummary)
+    };
+  }
+
+  for (code in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) {
+      continue;
+    }
+    map[code].projectName = resolveCanonicalProjectName_(code, map[code].projectName, map);
   }
 
   if (!map["ADMIN-INTERNO"]) {
@@ -958,6 +1197,57 @@ function getProjectMap_() {
 
   PROJECT_MAP_CACHE = map;
   return map;
+}
+
+function readProjectHintsFromOperationalSheets_() {
+  var hints = {};
+  var spreadsheets = SpreadsheetApp.getActiveSpreadsheet();
+  var controlSheet = spreadsheets.getSheetByName(CONTROL_SHEET_NAME);
+
+  collectProjectHintsFromSheet_(controlSheet, CONTROL_DATA_START_ROW, 2, 1, hints);
+
+  var list = [];
+  var code;
+  for (code in hints) {
+    if (Object.prototype.hasOwnProperty.call(hints, code)) {
+      list.push({
+        contractId: code,
+        projectName: hints[code]
+      });
+    }
+  }
+  list.sort(function (a, b) {
+    return compareContractId_(a.contractId, b.contractId);
+  });
+  return list;
+}
+
+function collectProjectHintsFromSheet_(sheet, startRow, contractColumn, projectColumn, store) {
+  if (!sheet || sheet.getLastRow() < startRow) {
+    return;
+  }
+
+  var width = Math.max(contractColumn, projectColumn) + 1;
+  var values = sheet.getRange(startRow, 1, sheet.getLastRow() - startRow + 1, width).getValues();
+  var i;
+
+  for (i = 0; i < values.length; i += 1) {
+    var row = values[i];
+    var contractId = extractContractId_(row[contractColumn]);
+    if (!contractId || contractId === "ADMIN-INTERNO") {
+      continue;
+    }
+
+    var projectName = normalizeProjectDisplayName_(row[projectColumn]);
+    if (!clean_(store[contractId])) {
+      store[contractId] = projectName || contractId;
+      continue;
+    }
+
+    if (isContractDisplayName_(projectName) && !isContractDisplayName_(store[contractId])) {
+      store[contractId] = projectName;
+    }
+  }
 }
 
 function readProjectsFromContractsSheet_() {
@@ -1080,13 +1370,7 @@ function readProjectsFromContractsSheet_() {
     if (!projectName) {
       projectName = findContractDisplayNameInRow_(row);
     }
-    if (!projectName && PROJECT_MAP[contractId]) {
-      projectName = clean_(PROJECT_MAP[contractId].projectName);
-    }
-    if (!projectName) {
-      projectName = contractId;
-    }
-    projectName = normalizeProjectDisplayName_(projectName);
+    projectName = choosePreferredProjectName_(contractId, projectName, contractDisplayName);
 
     map[contractId] = {
       projectName: projectName,
@@ -1247,6 +1531,52 @@ function normalizeProjectDisplayName_(value) {
   return text;
 }
 
+function isContractDisplayName_(value) {
+  var text = clean_(value).toUpperCase();
+  if (!text) {
+    return false;
+  }
+  return /^CT[\s\-_]+[0-9]{8}[-_/][0-9]{3}(?:[-_/][0-9]{3})?\b/.test(text);
+}
+
+function resolveCanonicalProjectName_(contractId, fallbackName, map) {
+  var target = clean_(contractId);
+  var current = clean_(fallbackName);
+  var projectMap = map || getProjectMap_();
+  var fromMap = projectMap[target] ? clean_(projectMap[target].projectName) : "";
+
+  if (isContractDisplayName_(fromMap)) {
+    return fromMap;
+  }
+  if (isContractDisplayName_(current)) {
+    return current;
+  }
+  if (fromMap) {
+    return fromMap;
+  }
+  if (current) {
+    return current;
+  }
+  return target;
+}
+
+function choosePreferredProjectName_(contractId, primaryName, contractDisplayName) {
+  var primary = normalizeProjectDisplayName_(primaryName);
+  var display = normalizeProjectDisplayName_(contractDisplayName);
+  var fallbackFromMap = PROJECT_MAP[contractId] ? normalizeProjectDisplayName_(PROJECT_MAP[contractId].projectName) : "";
+
+  if (isContractDisplayName_(display)) {
+    return display;
+  }
+  if (isContractDisplayName_(primary)) {
+    return primary;
+  }
+  if (isContractDisplayName_(fallbackFromMap)) {
+    return fallbackFromMap;
+  }
+  return primary || display || fallbackFromMap || clean_(contractId);
+}
+
 function extractContractId_(value) {
   var text = clean_(value).toUpperCase();
   if (!text) {
@@ -1284,8 +1614,7 @@ function shouldSkipContractByStatus_(value) {
 
   if (
     status.indexOf("cancel") >= 0 ||
-    status.indexOf("encerr") >= 0 ||
-    status.indexOf("finaliz") >= 0 ||
+    status.indexOf("distrat") >= 0 ||
     status.indexOf("arquiv") >= 0 ||
     status.indexOf("inativ") >= 0
   ) {
@@ -1468,6 +1797,7 @@ function syncControlFromRecords_(controlContext, records, meta) {
     updateControlRowFromRecord_(rows[rowIndex], record, meta);
   }
 
+  applyCanonicalProjectNamesToControlRows_(rows, getProjectMap_());
   writeControlRows_(controlContext.sheet, rows);
 }
 
@@ -1575,7 +1905,7 @@ function findControlRowIndexForRecord_(rows, record) {
 
 function createAdHocControlRow_(record, meta) {
   return buildControlRow_({
-    projectName: record.projectName,
+    projectName: resolveCanonicalProjectName_(record.contractId, record.projectName),
     contractId: record.contractId,
     refEap: record.refEap,
     phase: record.phase,
@@ -1597,7 +1927,7 @@ function createAdHocControlRow_(record, meta) {
 
 function updateControlRowFromRecord_(row, record, meta) {
   row[0] = makeControlKey_(record.contractId, record.refEap);
-  row[1] = clean_(row[1]) || record.projectName;
+  row[1] = resolveCanonicalProjectName_(record.contractId, record.projectName || row[1]);
   row[2] = clean_(row[2]) || record.contractId;
   row[3] = clean_(row[3]) || record.refEap;
   row[4] = clean_(row[4]) || record.phase;
@@ -1820,20 +2150,25 @@ function replaceExecutionRowsByFormId_(sheet, formId, newRows) {
 
   if (newRows && newRows.length) {
     var startRow = Math.max(sheet.getLastRow() + 1, EXEC_DATA_START_ROW);
-    sheet.getRange(startRow, 1, newRows.length, 17).setValues(newRows);
+    sheet.getRange(startRow, 1, newRows.length, EXEC_COLUMNS).setValues(newRows);
   }
 }
 
-function rebuildControlFromExecution_(executionSheet) {
+function rebuildControlFromExecution_(executionSheet, options) {
+  options = options || {};
   var controlSheet = getOrCreateControlSheet_();
-  var rows = buildControlRowsFromStandardTemplate_();
+  var preservedRows = Array.isArray(options.preserveRows) ? options.preserveRows : [];
+  var projectMap = getProjectMap_();
+  var rows = mergePreservedControlRows_(buildControlRowsFromStandardTemplate_(), preservedRows);
+  applyCanonicalProjectNamesToControlRows_(rows, projectMap);
+  var touchedByExecution = {};
   var updatedAtBr = Utilities.formatDate(new Date(), getTz_(), "dd/MM/yyyy");
   var lastRow = executionSheet.getLastRow();
   var values = [];
   var i;
 
   if (lastRow >= EXEC_DATA_START_ROW) {
-    values = executionSheet.getRange(EXEC_DATA_START_ROW, 1, lastRow - EXEC_DATA_START_ROW + 1, 17).getValues();
+    values = executionSheet.getRange(EXEC_DATA_START_ROW, 1, lastRow - EXEC_DATA_START_ROW + 1, EXEC_COLUMNS).getValues();
   }
 
   for (i = 0; i < values.length; i += 1) {
@@ -1850,8 +2185,14 @@ function rebuildControlFromExecution_(executionSheet) {
     }
 
     updateControlRowFromRecord_(rows[rowIndex], parsed.record, parsed.meta);
+    touchedByExecution[makeControlKey_(rows[rowIndex][2], rows[rowIndex][3])] = true;
   }
 
+  if (preservedRows.length) {
+    preserveCoordinatorDataForUntouchedRows_(rows, preservedRows, touchedByExecution);
+  }
+
+  applyCanonicalProjectNamesToControlRows_(rows, projectMap);
   writeControlRows_(controlSheet, rows);
   return rows;
 }
@@ -1928,7 +2269,22 @@ function cloneDate_(value) {
 
 function isBusinessDay_(date) {
   var day = date.getDay();
-  return day !== 0 && day !== 6;
+  if (day === 0 || day === 6) {
+    return false;
+  }
+  return !isRecessoDay_(date);
+}
+
+function isRecessoDay_(date) {
+  if (!(date instanceof Date)) {
+    return false;
+  }
+
+  var md = Utilities.formatDate(date, getTz_(), "MM-dd");
+  if (RECESS_START_MONTH_DAY > RECESS_END_MONTH_DAY) {
+    return md >= RECESS_START_MONTH_DAY || md <= RECESS_END_MONTH_DAY;
+  }
+  return md >= RECESS_START_MONTH_DAY && md <= RECESS_END_MONTH_DAY;
 }
 
 function nextBusinessDay_(date) {
@@ -2091,7 +2447,7 @@ function buildPpmSnapshotPayload_() {
       var projectInfo = projectMap[contractId] || {};
       byContract[contractId] = {
         contractId: contractId,
-        projectName: clean_(row[1]) || contractId,
+        projectName: resolveCanonicalProjectName_(contractId, clean_(row[1]) || clean_(projectInfo.projectName), projectMap),
         signatureDate: clean_(projectInfo.signatureDate),
         tasks: [],
         totals: {
@@ -2170,7 +2526,8 @@ function buildCoordProjectPayload_(contractId) {
   var controlSheet = getOrCreateControlSheet_();
   var controlRows = readControlRows_(controlSheet);
   var eventsSheet = getOrCreateEventsSheet_();
-  var projectInfo = getProjectMap_()[target] || {
+  var fullProjectMap = getProjectMap_();
+  var projectInfo = fullProjectMap[target] || {
     projectName: target,
     contractId: target,
     sectionName: "Secao " + target
@@ -2235,7 +2592,7 @@ function buildCoordProjectPayload_(contractId) {
     status: "ok",
     project: {
       contractId: target,
-      projectName: clean_(projectInfo.projectName) || target,
+      projectName: resolveCanonicalProjectName_(target, clean_(projectInfo.projectName), fullProjectMap),
       signatureDate: signatureDate,
       daysSinceSignature: daysSinceSignature,
       contractDeadlineSummary: contractDeadlineSummary,
@@ -2318,6 +2675,7 @@ function handleCoordProjectUpdate_(payload) {
     recalcResult = recalculateProjectScheduleRows_(rows, target);
   }
 
+  applyCanonicalProjectNamesToControlRows_(rows, getProjectMap_());
   writeControlRows_(controlSheet, rows);
 
   var eventsSheet = getOrCreateEventsSheet_();
@@ -2782,8 +3140,9 @@ function buildHistoryPayload_(professional, limit) {
   if (!sheet || sheet.getLastRow() < EXEC_DATA_START_ROW) {
     return { status: "ok", history: [] };
   }
+  ensureExecutionSheetReady_(sheet);
 
-  var values = sheet.getRange(EXEC_DATA_START_ROW, 1, sheet.getLastRow() - EXEC_DATA_START_ROW + 1, 17).getValues();
+  var values = sheet.getRange(EXEC_DATA_START_ROW, 1, sheet.getLastRow() - EXEC_DATA_START_ROW + 1, EXEC_COLUMNS).getValues();
 
   for (i = values.length - 1; i >= 0; i -= 1) {
     var row = values[i];
@@ -2801,8 +3160,8 @@ function buildHistoryPayload_(professional, limit) {
       grouped[formId] = {
         formId: formId,
         professional: rowProfessional,
-        dateBr: clean_(row[13]),
-        submittedAtBr: clean_(row[15]),
+        dateBr: toBrDateLabel_(row[13]),
+        submittedAtBr: toBrDateLabel_(row[15]),
         projects: []
       };
       order.push(formId);
@@ -2853,6 +3212,14 @@ function isoToBr_(value) {
   var parsed = parseDate_(value);
   if (!parsed) {
     return "";
+  }
+  return Utilities.formatDate(parsed, getTz_(), "dd/MM/yyyy");
+}
+
+function toBrDateLabel_(value) {
+  var parsed = parseDate_(value);
+  if (!parsed) {
+    return clean_(value);
   }
   return Utilities.formatDate(parsed, getTz_(), "dd/MM/yyyy");
 }

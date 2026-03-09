@@ -1063,6 +1063,12 @@ textarea {
   color: #5b6976;
 }
 
+.history-item .history-submitted {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6f8090;
+}
+
 .history-item ul {
   margin: 0;
   padding-left: 16px;
