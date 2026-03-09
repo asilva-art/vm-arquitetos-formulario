@@ -85,11 +85,11 @@ var STATUS_CONTROL = {
 };
 
 var PROJECT_MAP = {
-  "CT-117": { projectName: "CT-117", contractId: "CT-117", sectionName: "Secao CT-117" },
-  "CT-119": { projectName: "CT-119", contractId: "CT-119", sectionName: "Secao CT-119" },
-  "CT-120": { projectName: "CT-120", contractId: "CT-120", sectionName: "Secao CT-120" },
-  "CT-121": { projectName: "CT-121", contractId: "CT-121", sectionName: "Secao CT-121" },
-  "CT-122": { projectName: "CT-122", contractId: "CT-122", sectionName: "Secao CT-122" },
+  "CT-117": { projectName: "CT 20251212-058-117 - Paulo Henrique", contractId: "CT-117", sectionName: "Secao CT-117" },
+  "CT-119": { projectName: "CT 20251216-824-119 - Karina e Toshi", contractId: "CT-119", sectionName: "Secao CT-119" },
+  "CT-120": { projectName: "CT 20251222-367-120 - Alliance Health", contractId: "CT-120", sectionName: "Secao CT-120" },
+  "CT-121": { projectName: "CT 20260120-570-121 - Valdete e Carlos", contractId: "CT-121", sectionName: "Secao CT-121" },
+  "CT-122": { projectName: "CT 20260212-089-122 - Iara e Tales", contractId: "CT-122", sectionName: "Secao CT-122" },
   "ADMIN-INTERNO": { projectName: "Administrativo/Interno", contractId: "ADMIN-INTERNO", sectionName: "Secao Administrativo/Interno" }
 };
 var CONTRACTS_SHEET_NAME = "CONTRATOS";

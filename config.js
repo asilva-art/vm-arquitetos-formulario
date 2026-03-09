@@ -15,9 +15,9 @@ window.VM_FORM_CONFIG = {
   ],
 
   projetos: [
-    { code: "CT-117", label: "CT-117 | PH Top Green" },
-    { code: "CT-119", label: "CT-119 | KT Costa Laguna" },
-    { code: "CT-120", label: "CT-120 | Alliance Sede NL" },
+    { code: "CT-117", label: "CT 20251212-058-117 - Paulo Henrique" },
+    { code: "CT-119", label: "CT 20251216-824-119 - Karina e Toshi" },
+    { code: "CT-120", label: "CT 20251222-367-120 - Alliance Health" },
     {
       code: "CT-121",
       label: "CT 20260120-570-121 - Valdete e Carlos",
