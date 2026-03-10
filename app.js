@@ -15,6 +15,7 @@
   var formChecklistEl = document.getElementById("form-checklist");
   var feedbackEl = document.getElementById("feedback");
   var portfolioFilterEl = document.getElementById("portfolio-filter");
+  var portfolioSortEl = document.getElementById("portfolio-sort");
   var portfolioCutoffEl = document.getElementById("portfolio-cutoff");
   var portfolioRefreshEl = document.getElementById("portfolio-refresh");
   var portfolioToggleEl = document.getElementById("portfolio-toggle");
@@ -136,6 +137,9 @@
     formEl.addEventListener("input", handleFormInteraction_);
     if (portfolioFilterEl) {
       portfolioFilterEl.addEventListener("change", renderPortfolioOverview);
+    }
+    if (portfolioSortEl) {
+      portfolioSortEl.addEventListener("change", renderPortfolioOverview);
     }
     if (portfolioCutoffEl) {
       portfolioCutoffEl.addEventListener("change", renderPortfolioOverview);
@@ -284,7 +288,7 @@
       return;
     }
 
-    if (target === professionalEl || target.id === "portfolio-filter" || target.id === "portfolio-cutoff") {
+    if (target === professionalEl || target.id === "portfolio-filter" || target.id === "portfolio-sort" || target.id === "portfolio-cutoff") {
       return;
     }
 
@@ -1511,11 +1515,12 @@
     portfolioDataset = buildPortfolioDataset_();
     var dataset = Array.isArray(portfolioDataset) ? portfolioDataset : [];
     var filtered = applyPortfolioFilter_(dataset);
+    var sorted = applyPortfolioSort_(filtered);
 
-    renderPortfolioSummary_(filtered);
-    renderPortfolioCards_(filtered);
-    renderPortfolioBlocks_(filtered);
-    renderMeetingAgenda_(filtered);
+    renderPortfolioSummary_(sorted);
+    renderPortfolioCards_(sorted);
+    renderPortfolioBlocks_(sorted);
+    renderMeetingAgenda_(sorted);
   }
 
   function renderDailyFocus_() {
@@ -2060,6 +2065,39 @@
     return dataset.filter(function (item) {
       return selected.indexOf(item.code) >= 0;
     });
+  }
+
+  function applyPortfolioSort_(dataset) {
+    var items = Array.isArray(dataset) ? dataset.slice() : [];
+    var mode = cleanText(portfolioSortEl && portfolioSortEl.value);
+
+    if (mode !== "signature-asc" && mode !== "signature-desc") {
+      return items;
+    }
+
+    var factor = mode === "signature-desc" ? -1 : 1;
+    items.sort(function (a, b) {
+      var aHasDate = a && a.signatureDate instanceof Date;
+      var bHasDate = b && b.signatureDate instanceof Date;
+
+      if (!aHasDate && !bHasDate) {
+        return String(a && a.code ? a.code : "").localeCompare(String(b && b.code ? b.code : ""));
+      }
+      if (!aHasDate) {
+        return 1;
+      }
+      if (!bHasDate) {
+        return -1;
+      }
+
+      var diff = (a.signatureDate.getTime() - b.signatureDate.getTime()) * factor;
+      if (diff !== 0) {
+        return diff;
+      }
+      return String(a && a.code ? a.code : "").localeCompare(String(b && b.code ? b.code : ""));
+    });
+
+    return items;
   }
 
   function hasWeeklyAttention_(item) {

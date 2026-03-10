@@ -156,6 +156,12 @@
               <option value="coord-risk">Coordenacao: risco (amarelo/vermelho)</option>
               <option value="coord-blocked">Coordenacao: bloqueados</option>
             </select>
+            <label for="portfolio-sort">Classificacao</label>
+            <select id="portfolio-sort" name="portfolioSort">
+              <option value="default">Padrao da exibicao</option>
+              <option value="signature-asc">Assinatura (mais antiga - mais recente)</option>
+              <option value="signature-desc">Assinatura (mais recente - mais antiga)</option>
+            </select>
             <label for="portfolio-cutoff">Data de corte</label>
             <input id="portfolio-cutoff" name="portfolioCutoff" type="date" />
             <button id="portfolio-refresh" class="portfolio-refresh" type="button">Atualizar painel</button>
