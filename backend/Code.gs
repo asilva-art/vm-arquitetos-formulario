@@ -3522,3 +3522,81 @@ function resumoControleEapAtual() {
     totals: totals
   };
 }
+
+function reconciliarControleComEapPadrao() {
+  var controlSheet = getOrCreateControlSheet_();
+  var currentRows = readControlRows_(controlSheet);
+  var baselineRows = buildControlRowsFromStandardTemplate_();
+  var mergedRows = mergePreservedControlRows_(baselineRows, currentRows);
+  var projectMap = getProjectMap_();
+  applyCanonicalProjectNamesToControlRows_(mergedRows, projectMap);
+  writeControlRows_(controlSheet, mergedRows);
+
+  var currentByContract = summarizeRowsByContract_(currentRows);
+  var mergedByContract = summarizeRowsByContract_(mergedRows);
+  var contracts = Object.keys(mergedByContract).sort(compareContractId_);
+  var coverage = [];
+  var i;
+
+  for (i = 0; i < contracts.length; i += 1) {
+    var contractId = contracts[i];
+    var before = currentByContract[contractId] || 0;
+    var after = mergedByContract[contractId] || 0;
+    coverage.push({
+      contractId: contractId,
+      beforeRows: before,
+      afterRows: after,
+      addedRows: Math.max(after - before, 0)
+    });
+  }
+
+  return {
+    status: "ok",
+    message: "Reconciliação concluída sem perda de dados existentes.",
+    beforeRows: currentRows.length,
+    afterRows: mergedRows.length,
+    addedRows: Math.max(mergedRows.length - currentRows.length, 0),
+    coverage: coverage
+  };
+}
+
+function auditoriaCoberturaControle() {
+  var rows = readControlRows_(getOrCreateControlSheet_());
+  var baselineRows = buildControlRowsFromStandardTemplate_();
+  var currentByContract = summarizeRowsByContract_(rows);
+  var expectedByContract = summarizeRowsByContract_(baselineRows);
+  var contracts = Object.keys(expectedByContract).sort(compareContractId_);
+  var coverage = [];
+  var i;
+
+  for (i = 0; i < contracts.length; i += 1) {
+    var contractId = contracts[i];
+    var expected = expectedByContract[contractId] || 0;
+    var current = currentByContract[contractId] || 0;
+    coverage.push({
+      contractId: contractId,
+      currentRows: current,
+      expectedRows: expected,
+      missingRows: Math.max(expected - current, 0)
+    });
+  }
+
+  return {
+    status: "ok",
+    coverage: coverage
+  };
+}
+
+function summarizeRowsByContract_(rows) {
+  var source = Array.isArray(rows) ? rows : [];
+  var summary = {};
+  var i;
+  for (i = 0; i < source.length; i += 1) {
+    var contractId = clean_(source[i][2]);
+    if (!contractId) {
+      continue;
+    }
+    summary[contractId] = (summary[contractId] || 0) + 1;
+  }
+  return summary;
+}
