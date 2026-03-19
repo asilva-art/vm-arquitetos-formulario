@@ -1,0 +1,2457 @@
+<html lang="pt-BR"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EAP/WBS - VM+Arquitetos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f0f2f5;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px;
+    background: #fff; border-bottom: 1px solid #ddd;
+    display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 9999;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  #toolbar .logo { font-weight: 700; font-size: 13px; color: #1a73e8; margin-right: 8px; }
+  #toolbar .sep { width: 1px; height: 22px; background: #ddd; }
+  #toolbar button {
+    background: #f8f9fa; border: 1px solid #dadce0; color: #333;
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;
+  }
+  #toolbar button:hover { background: #e8eaed; }
+  #toolbar button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  #toolbar button.primary:hover { background: #1557b0; }
+  #toolbar .zoom-display { font-size: 12px; color: #666; min-width: 42px; text-align: center; }
+
+  #canvas-area {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; cursor: grab; background: #f0f2f5;
+    background-image: radial-gradient(circle, #d0d0d0 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  #canvas-area.grabbing { cursor: grabbing; }
+
+  #world {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    position: absolute;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+    cursor: grab;
+  }
+  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+  .card.is-dragging {
+    box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+    z-index: 9000 !important;
+    cursor: grabbing;
+    opacity: 0.95;
+  }
+
+  .card-head {
+    padding: 7px 10px;
+    font-weight: 700; font-size: 11px; color: #fff;
+    cursor: grab;
+    line-height: 1.3;
+  }
+  .card.is-dragging .card-head { cursor: grabbing; }
+
+  .card-content {
+    padding: 8px 10px; font-size: 10.5px; line-height: 1.5; color: #333;
+    white-space: pre-wrap; cursor: text;
+    -webkit-user-select: text; user-select: text;
+    outline: none; min-height: 14px;
+  }
+  .card-content:focus { background: #fffde7; }
+
+  .card-meta {
+    padding: 5px 10px; font-size: 9px; color: #777; border-top: 1px solid #eee;
+    background: #fafafa; white-space: pre-wrap; cursor: text;
+    -webkit-user-select: text; user-select: text;
+    outline: none; min-height: 12px;
+  }
+  .card-meta:focus { background: #fffde7; }
+
+  /* ===== LEVEL SIZES ===== */
+  .L0 { width: 260px; z-index: 10; }
+  .L1 { width: 210px; z-index: 8; }
+  .L2 { width: 195px; z-index: 6; }
+  .L3 { width: 180px; z-index: 4; }
+
+  /* ===== COLORS ===== */
+  .M0 .card-head { background: #263238; font-size: 13px; }
+  .M1 .card-head { background: #c62828; }
+  .M2 .card-head { background: #6a1b9a; }
+  .M3 .card-head { background: #283593; }
+  .M4 .card-head { background: #00695c; }
+  .M5 .card-head { background: #e65100; }
+  .M6 .card-head { background: #37474f; }
+
+  .M1.L2, .M1.L3 { border-top: 3px solid #c62828; }
+  .M2.L2, .M2.L3 { border-top: 3px solid #6a1b9a; }
+  .M3.L2, .M3.L3 { border-top: 3px solid #283593; }
+  .M4.L2, .M4.L3 { border-top: 3px solid #00695c; }
+  .M5.L2, .M5.L3 { border-top: 3px solid #e65100; }
+  .M6.L2, .M6.L3 { border-top: 3px solid #37474f; }
+
+  /* ===== SVG LINES ===== */
+  #lines {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: visible;
+  }
+  #lines path { fill: none; stroke: #aab; stroke-width: 1.5; }
+
+  /* ===== SELECTION ===== */
+  .card.selected {
+    outline: 2px solid #1a73e8;
+    outline-offset: 2px;
+  }
+
+  #select-rect {
+    position: absolute;
+    border: 2px dashed #1a73e8;
+    background: rgba(26, 115, 232, 0.08);
+    pointer-events: none;
+    display: none;
+    z-index: 9500;
+  }
+
+  /* ===== SAVE TOAST ===== */
+  #toast {
+    position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
+    background: #323232; color: #fff; padding: 10px 24px; border-radius: 8px;
+    font-size: 13px; z-index: 99999; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+
+  #toolbar button.save { background: #0d904f; color: #fff; border-color: #0d904f; }
+  #toolbar button.save:hover { background: #0a7a42; }
+  #toolbar button.log-btn { background: #7b61ff; color: #fff; border-color: #7b61ff; }
+  #toolbar button.log-btn:hover { background: #6247d4; }
+
+  /* ===== COMMENT FIELD ===== */
+  .card-comment {
+    padding: 5px 10px;
+    font-size: 9px;
+    line-height: 1.4;
+    color: #665500;
+    background: #fff9e6;
+    border-top: 1px dashed #e6d88a;
+    white-space: pre-wrap;
+    cursor: text;
+    -webkit-user-select: text;
+    user-select: text;
+    outline: none;
+    min-height: 12px;
+    max-height: 52px;
+    overflow-y: auto;
+  }
+  .card-comment:focus {
+    background: #fff3c4;
+  }
+  .card-comment:empty::before {
+    content: 'Comentarios Equipe';
+    color: #c0a830;
+    font-style: italic;
+    pointer-events: none;
+  }
+  .card-comment-label {
+    padding: 2px 10px 0;
+    font-size: 7.5px;
+    font-weight: 600;
+    color: #b89a00;
+    background: #fff9e6;
+    border-top: 1px dashed #e6d88a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== LOG PANEL ===== */
+  #log-panel {
+    position: fixed;
+    top: 44px;
+    right: -380px;
+    width: 370px;
+    bottom: 28px;
+    background: #fff;
+    border-left: 1px solid #ddd;
+    box-shadow: -4px 0 16px rgba(0,0,0,0.08);
+    z-index: 10000;
+    transition: right 0.25s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  #log-panel.open { right: 0; }
+  #log-panel-header {
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fafafa;
+  }
+  #log-panel-header button {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #888;
+    padding: 0 4px;
+  }
+  #log-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .log-entry {
+    padding: 8px 16px;
+    border-bottom: 1px solid #f2f2f2;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .log-entry:hover { background: #f8f8ff; }
+  .log-time { color: #999; font-size: 10px; }
+  .log-card { color: #1a73e8; font-weight: 600; }
+  .log-field { color: #7b61ff; font-size: 10px; }
+  .log-old { color: #c62828; text-decoration: line-through; font-size: 10px; }
+  .log-new { color: #0d904f; font-size: 10px; }
+  #log-panel-footer {
+    padding: 8px 16px;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+    display: flex;
+    gap: 8px;
+  }
+  #log-panel-footer button {
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background: #f8f9fa;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  #log-panel-footer button:hover { background: #e8eaed; }
+  #log-filter { flex:1; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; }
+
+  /* ===== CONTEXT MENU ===== */
+  #ctx-menu {
+    position: fixed;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 99999;
+    min-width: 180px;
+    padding: 4px 0;
+    display: none;
+    font-size: 12px;
+  }
+  #ctx-menu .ctx-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #ctx-menu .ctx-item:hover { background: #f0f4ff; }
+  #ctx-menu .ctx-sep { height: 1px; background: #eee; margin: 4px 0; }
+  #ctx-menu .ctx-icon { font-size: 14px; width: 18px; text-align: center; }
+  #ctx-menu .ctx-key { margin-left: auto; font-size: 10px; color: #aaa; }
+
+  /* ===== COLOR PICKER POPUP ===== */
+  #color-picker {
+    position: fixed;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 99999;
+    padding: 12px;
+    display: none;
+    width: 220px;
+  }
+  #color-picker .cp-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  #color-picker .cp-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  #color-picker .cp-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  #color-picker .cp-swatch:hover {
+    transform: scale(1.15);
+    border-color: #333;
+  }
+  #color-picker .cp-swatch.active {
+    border-color: #333;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #333;
+  }
+  #color-picker .cp-custom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  #color-picker .cp-custom input[type="color"] {
+    width: 32px; height: 28px; border: 1px solid #ccc; border-radius: 4px;
+    padding: 0; cursor: pointer;
+  }
+  #color-picker .cp-custom span {
+    font-size: 10px; color: #888;
+  }
+  .card.paste-flash {
+    animation: pasteFlash 0.4s ease;
+  }
+  @keyframes pasteFlash {
+    0% { box-shadow: 0 0 0 4px rgba(26,115,232,0.5); }
+    100% { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  }
+
+  /* ===== VIEW TABS ===== */
+  .view-tabs {
+    display: flex;
+    gap: 0;
+    margin-right: 4px;
+  }
+  .view-tab {
+    padding: 5px 16px !important;
+    border-radius: 4px 4px 0 0 !important;
+    border-bottom: 2px solid transparent !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    background: #f0f0f0 !important;
+    color: #666 !important;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .view-tab:hover { background: #e0e0e0 !important; }
+  .view-tab.active {
+    background: #1a73e8 !important;
+    color: #fff !important;
+    border-bottom-color: #1a73e8 !important;
+  }
+
+  /* ===== FLOW VIEW ===== */
+  #flow-area {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 28px;
+    overflow: hidden; cursor: grab;
+    background: #f4f6f8;
+    background-image: radial-gradient(circle, #d4d4d4 1px, transparent 1px);
+    background-size: 24px 24px;
+    display: none !important;
+  }
+  #flow-area.active {
+    display: block !important;
+  }
+  #flow-area.grabbing { cursor: grabbing; }
+  #flow-world {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  .swim-lane {
+    position: absolute;
+    display: flex;
+    align-items: flex-start;
+  }
+  .swim-header {
+    width: 140px;
+    min-height: 80px;
+    padding: 12px 10px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    border-radius: 8px 0 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.3;
+    flex-shrink: 0;
+  }
+  .swim-track {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    padding: 8px 0 8px 0;
+    min-height: 80px;
+    position: relative;
+  }
+  .flow-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: default;
+    transition: box-shadow 0.15s;
+    position: relative;
+  }
+  .flow-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+  .flow-card.is-dragging { box-shadow: 0 8px 28px rgba(0,0,0,0.25); z-index: 900; opacity: 0.95; }
+  .flow-card .card-head {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+  .flow-card .card-content {
+    padding: 5px 8px;
+    font-size: 9px;
+    line-height: 1.4;
+  }
+  .flow-card .card-meta {
+    padding: 4px 8px;
+    font-size: 8px;
+  }
+  .flow-card .card-comment-label { font-size: 7px; padding: 1px 8px 0; }
+  .flow-card .card-comment { font-size: 8px; padding: 3px 8px; max-height: 36px; }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    color: #999;
+    font-size: 18px;
+    flex-shrink: 0;
+    height: 80px;
+    align-self: center;
+  }
+
+  .flow-sub-row {
+    display: flex;
+    gap: 0;
+    margin-top: 4px;
+    padding-left: 148px;
+    align-items: flex-start;
+  }
+  .flow-card.sub-card {
+    border: 2px dashed #ccc;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .flow-card.sub-card .card-head { font-size: 9px; padding: 4px 6px; }
+  .flow-card.sub-card .card-content { font-size: 8px; padding: 4px 6px; }
+  .flow-card.sub-card .card-meta { font-size: 7px; padding: 3px 6px; }
+  .flow-sub-arrow {
+    display: flex; align-items: center; padding: 0 4px;
+    color: #bbb; font-size: 14px; flex-shrink: 0; height: 60px; align-self: center;
+  }
+
+  .lane-bg {
+    position: absolute;
+    border-radius: 8px;
+    opacity: 0.04;
+  }
+
+  /* ===== TUTORIAL PANEL ===== */
+  #tutorial {
+    position: fixed;
+    bottom: 36px;
+    left: 16px;
+    width: 280px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    z-index: 10001;
+    overflow: hidden;
+    transition: height 0.25s ease, opacity 0.2s;
+  }
+  #tutorial.minimized {
+    height: 36px !important;
+  }
+  #tutorial-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #1a73e8;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #tutorial-header:hover { background: #1557b0; }
+  #tutorial-toggle {
+    font-size: 16px;
+    line-height: 1;
+    transition: transform 0.25s;
+  }
+  #tutorial.minimized #tutorial-toggle { transform: rotate(180deg); }
+  #tutorial-body {
+    padding: 10px 12px 12px;
+    font-size: 10.5px;
+    line-height: 1.7;
+    color: #444;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  #tutorial.minimized #tutorial-body { display: none; }
+  #tutorial-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+  }
+  #tutorial-body td {
+    padding: 3px 6px;
+    vertical-align: top;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  #tutorial-body td:first-child {
+    font-weight: 600;
+    white-space: nowrap;
+    color: #1a73e8;
+    width: 42%;
+  }
+  .tut-section {
+    font-weight: 700;
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 10px 0 4px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+  }
+  .tut-section:first-child { margin-top: 0; border: none; padding-top: 0; }
+
+  /* ===== FOOTER ===== */
+  #bottombar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 28px;
+    background: #fff; border-top: 1px solid #ddd; display: flex;
+    align-items: center; justify-content: space-between;
+    padding: 0 12px; font-size: 11px; color: #888; z-index: 9999;
+  }
+  #bottombar .brand {
+    font-size: 9px;
+    color: #aaa;
+    letter-spacing: 0.3px;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="logo">EAP/WBS VM+Arquitetos</span>
+  <div class="sep"></div>
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-hier" onclick="switchView('hier')">Hierarquia</button>
+    <button class="view-tab" id="tab-flow" onclick="switchView('flow')">Fluxo</button>
+  </div>
+  <div class="sep"></div>
+  <button onclick="doZoom(1.25)">+ Zoom</button>
+  <span class="zoom-display" id="zoomTxt">285%</span>
+  <button onclick="doZoom(0.8)">- Zoom</button>
+  <button class="primary" onclick="fitToScreen()">Ajustar Tela</button>
+  <div class="sep"></div>
+  <button onclick="rebuildLayout()">Resetar Layout</button>
+  <button onclick="toggleCollapse(true)">Recolher</button>
+  <button onclick="toggleCollapse(false)">Expandir</button>
+  <div class="sep"></div>
+  <button class="save" onclick="saveState()">Salvar</button>
+  <button onclick="downloadHTML()">Baixar HTML</button>
+  <div class="sep"></div>
+  <button class="log-btn" onclick="toggleLogPanel()">Historico</button>
+  <div class="sep"></div>
+  <button onclick="copySelected()" title="Copiar card selecionado (Cmd+C)">Copiar</button>
+  <button onclick="pasteCard()" title="Colar card (Cmd+V)">Colar</button>
+  <button onclick="deleteSelected()" title="Excluir selecionados (Del)">Excluir</button>
+  <div class="sep"></div>
+  <span class="zoom-display" id="selCount" style="color:#1a73e8; min-width:0;"></span>
+</div>
+
+<div id="canvas-area" class="">
+  <div id="world" style="transform: translate(-7117.220985px, -3263.88022px) scale(2.852012);">
+    <svg id="lines"><path d="M3000,141 C3000,189.9743178156221 -3860.448983998331,189.9743178156221 -3860.448983998331,238.9486356312442"></path><path d="M-3860.448983998331,342.9486356312442 C-3860.448983998331,363.4486356312442 -4179.948983998331,363.4486356312442 -4179.948983998331,383.9486356312442"></path><path d="M-3860.448983998331,342.9486356312442 C-3860.448983998331,363.4486356312442 -3966.948983998331,363.4486356312442 -3966.948983998331,383.9486356312442"></path><path d="M-3860.448983998331,342.9486356312442 C-3860.448983998331,363.4486356312442 -3753.948983998331,363.4486356312442 -3753.948983998331,383.9486356312442"></path><path d="M-3860.448983998331,342.9486356312442 C-3860.448983998331,363.4486356312442 -3540.948983998331,363.4486356312442 -3540.948983998331,383.9486356312442"></path><path d="M3000,141 C3000,179.6470042711734 -2012.9775757926182,179.6470042711734 -2012.9775757926182,218.29400854234675"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,376.94817295986195 -2883.059586338494,376.94817295986195 -2883.059586338494,431.60233737737707"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,375.84275178903215 -2674.5817638555245,375.84275178903215 -2674.5817638555245,429.3914950357176"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,376.0705355454456 -2460.476342684695,376.0705355454456 -2460.476342684695,429.8470625485444"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,376.8309313205315 -2251.8511307122817,376.8309313205315 -2251.8511307122817,431.36785409871624"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,375.980091995105 -2036.7206826375914,375.980091995105 -2036.7206826375914,429.66617544786317"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,376.0638360231981 -1823.2584156025173,376.0638360231981 -1823.2584156025173,429.83366350404947"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,375.26324311462747 -1612.797534534302,375.26324311462747 -1612.797534534302,428.2324776869082"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,377.37024286145146 -1402.2830572881069,377.37024286145146 -1402.2830572881069,432.44647718055614"></path><path d="M-2012.9775757926182,322.2940085423468 C-2012.9775757926182,379.16571482376884 -1190.6966564823197,379.16571482376884 -1190.6966564823197,436.0374211051909"></path><path d="M3000,141 C3000,210.8098320052008 -102.08591561423742,210.8098320052008 -102.08591561423742,280.6196640104016"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,517.7286988627382 -943.0899288450307,517.7286988627382 -943.0899288450307,665.8377337150747"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,517.9564826191515 -735.8850155890775,517.9564826191515 -735.8850155890775,666.2933012279015"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,519.4605253637047 -525.9265986894211,519.4605253637047 -525.9265986894211,669.3013867170079"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,519.5342201084268 -313.502757602702,519.5342201084268 -313.502757602702,669.4487762064518"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,521.1756030590527 -103.81902111519122,521.1756030590527 -103.81902111519122,672.7315421077037"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,521.992944773242 112.17566532942027,521.992944773242 112.17566532942027,674.3662255360823"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,521.2358987592797 334.60421672493794,521.2358987592797 334.60421672493794,672.852133508158"></path><path d="M334.60421672493794,782.852133508158 C334.60421672493794,850.617685885121 153.0369850485523,850.617685885121 153.0369850485523,918.383238262084"></path><path d="M334.60421672493794,782.852133508158 C334.60421672493794,850.8186715525446 351.10398027102684,850.8186715525446 351.10398027102684,918.7852095969312"></path><path d="M334.60421672493794,782.852133508158 C334.60421672493794,852.674439215089 543.2017011710208,852.674439215089 543.2017011710208,922.4967449220201"></path><path d="M334.60421672493794,782.852133508158 C334.60421672493794,853.3879383344428 741.543376805641,853.3879383344428 741.543376805641,923.9237431607276"></path><path d="M-102.08591561423742,369.6196640104016 C-102.08591561423742,529.6437991798332 908.6303951890341,529.6437991798332 908.6303951890341,689.6679343492649"></path><path d="M3000,141 C3000,175.5 3406.5,175.5 3406.5,210"></path><path d="M3406.5,314 C3406.5,391.81441282696 2843.7381986369037,391.81441282696 2843.7381986369037,469.62882565392"></path><path d="M3406.5,314 C3406.5,394.557867187292 3060.9923952640365,394.557867187292 3060.9923952640365,475.115734374584"></path><path d="M3406.5,314 C3406.5,395.7738304752047 3281.0603912350994,395.7738304752047 3281.0603912350994,477.54766095040935"></path><path d="M3406.5,314 C3406.5,396.85915307929207 3507.9016451440966,396.85915307929207 3507.9016451440966,479.71830615858414"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,909.04968786677 2694.683098437025,909.04968786677 2694.683098437025,1184.381069574956"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,906.651258902182 2893.714824863133,906.651258902182 2893.714824863133,1179.5842116457798"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,907.1235752206273 3099.6671577708594,907.1235752206273 3099.6671577708594,1180.5288442826704"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,909.9239755200626 3299.5966201781257,909.9239755200626 3299.5966201781257,1186.1296448815413"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,911.3375747142752 3503.6864859010607,911.3375747142752 3503.6864859010607,1188.9568432699664"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,914.1178764469682 3700.2393890956114,914.1178764469682 3700.2393890956114,1194.5174467353522"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,916.7340398845986 3899.713283990051,916.7340398845986 3899.713283990051,1199.7497736106131"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,917.6116772990149 4097.53239688937,917.6116772990149 4097.53239688937,1201.5050484394458"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,917.7858648774486 4293.596234959856,917.7858648774486 4293.596234959856,1201.8534235963132"></path><path d="M3507.9016451440966,633.7183061585841 C3507.9016451440966,920.5259694766569 4491.3483526367,920.5259694766569 4491.3483526367,1207.3336327947297"></path><path d="M3406.5,314 C3406.5,395.81737736981313 3877.268535345408,395.81737736981313 3877.268535345408,477.63475473962626"></path><path d="M3406.5,314 C3406.5,401.4047789241889 4265.2064602709,401.4047789241889 4265.2064602709,488.8095578483778"></path><path d="M3406.5,314 C3406.5,410.6534693867977 4960.775371348287,410.6534693867977 4960.775371348287,507.3069387735954"></path><path d="M4960.775371348287,646.3069387735954 C4960.775371348287,925.5507263182703 4755.7330137168265,925.5507263182703 4755.7330137168265,1204.7945138629452"></path><path d="M4960.775371348287,646.3069387735954 C4960.775371348287,925.5507263182703 4953.7330137168265,925.5507263182703 4953.7330137168265,1204.7945138629452"></path><path d="M4960.775371348287,646.3069387735954 C4960.775371348287,925.5507263182703 5151.7330137168265,925.5507263182703 5151.7330137168265,1204.7945138629452"></path><path d="M4960.775371348287,646.3069387735954 C4960.775371348287,925.5507263182703 5349.7330137168265,925.5507263182703 5349.7330137168265,1204.7945138629452"></path><path d="M3000,141 C3000,175.5 6859.5,175.5 6859.5,210"></path><path d="M6859.5,299 C6859.5,327 5587.5,327 5587.5,355"></path><path d="M5587.5,417 C5587.5,448.5 5389.5,448.5 5389.5,480"></path><path d="M5587.5,417 C5587.5,448.5 5587.5,448.5 5587.5,480"></path><path d="M5587.5,417 C5587.5,448.5 5785.5,448.5 5785.5,480"></path><path d="M6859.5,299 C6859.5,327 6273,327 6273,355"></path><path d="M6273,417 C6273,448.5 5976,448.5 5976,480"></path><path d="M6273,417 C6273,448.5 6174,448.5 6174,480"></path><path d="M6273,417 C6273,448.5 6372,448.5 6372,480"></path><path d="M6273,417 C6273,448.5 6570,448.5 6570,480"></path><path d="M6859.5,299 C6859.5,327 7056,327 7056,355"></path><path d="M7056,417 C7056,448.5 6759,448.5 6759,480"></path><path d="M7056,417 C7056,448.5 6957,448.5 6957,480"></path><path d="M7056,417 C7056,448.5 7155,448.5 7155,480"></path><path d="M7056,417 C7056,448.5 7353,448.5 7353,480"></path><path d="M6859.5,299 C6859.5,327 7936.5,327 7936.5,355"></path><path d="M7936.5,417 C7936.5,448.5 7540.5,448.5 7540.5,480"></path><path d="M7936.5,417 C7936.5,448.5 7738.5,448.5 7738.5,480"></path><path d="M7936.5,417 C7936.5,448.5 7936.5,448.5 7936.5,480"></path><path d="M7936.5,417 C7936.5,448.5 8134.5,448.5 8134.5,480"></path><path d="M7936.5,417 C7936.5,448.5 8332.5,448.5 8332.5,480"></path><path d="M3000,141 C3000,175.5 8947.5,175.5 8947.5,210"></path><path d="M8947.5,299 C8947.5,327 8521.5,327 8521.5,355"></path><path d="M8947.5,299 C8947.5,327 8734.5,327 8734.5,355"></path><path d="M8947.5,299 C8947.5,327 8947.5,327 8947.5,355"></path><path d="M8947.5,299 C8947.5,327 9160.5,327 9160.5,355"></path><path d="M8947.5,299 C8947.5,327 9373.5,327 9373.5,355"></path></svg>
+    <div id="select-rect" style="left: 4459.441172px; top: 469.179256px; width: 805.577353px; height: 303.119884px; display: none;"></div>
+  <div class="card L0 M0" data-id="root" style="left: 2870px; top: 50px;"><div class="card-head" contenteditable="true" spellcheck="false">Modelo de EAP/WBS VM</div><div class="card-content" contenteditable="true" spellcheck="false">VM+Arquitetos
+Manual de Procedimentos Operacionais (Revisado 4)</div></div><div class="card L1 M1" data-id="m1" style="left: -3965.448984px; top: 238.948636px;"><div class="card-head" contenteditable="true" spellcheck="false">1. Marketing</div><div class="card-content" contenteditable="true" spellcheck="false">Mundo Externo
+Atrair e engajar potenciais clientes (Leads) alinhados com a Persona Ideal.</div></div><div class="card L2 M1" data-id="1.1" style="left: -4277.448984px; top: 383.948636px;"><div class="card-head" contenteditable="true" spellcheck="false">1.1. Posicionamento e Conteudo</div><div class="card-content" contenteditable="true" spellcheck="false">Definir e manter o posicionamento da marca e criar conteudo para os canais midiaticos.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Marketing/Direcao
+Entregavel: Plano de Conteudo, Diretrizes de Marca</div></div><div class="card L2 M1" data-id="1.2" style="left: -4064.448984px; top: 383.948636px;"><div class="card-head" contenteditable="true" spellcheck="false">1.2. Execucao e Relacionamento</div><div class="card-content" contenteditable="true" spellcheck="false">Publicar conteudo, realizar atividades de relacionamento e manter a presenca da marca no mercado.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Marketing/Equipe
+Entregavel: Relatorios de Engajamento</div></div><div class="card L2 M1" data-id="1.3" style="left: -3851.448984px; top: 383.948636px;"><div class="card-head" contenteditable="true" spellcheck="false">1.3. Conexao com a Persona</div><div class="card-content" contenteditable="true" spellcheck="false">Acompanhar a interacao do publico com o conteudo, buscando a conexao com a Persona(s) Ideal.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Marketing
+Entregavel: Analise de Performance de Conteudo</div></div><div class="card L2 M1" data-id="1.4" style="left: -3638.448984px; top: 383.948636px;"><div class="card-head" contenteditable="true" spellcheck="false">1.4. Captacao de Lead</div><div class="card-content" contenteditable="true" spellcheck="false">Receber o contato do potencial cliente (Lead) e encaminha-lo para o Macroprocesso de Proposta.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Marketing/Administrativo
+Entregavel: Registro do Lead no Mini CRM</div></div><div class="card L1 M2" data-id="m2" style="left: -2117.977576px; top: 218.294009px;"><div class="card-head" contenteditable="true" spellcheck="false">2. Proposta</div><div class="card-content" contenteditable="true" spellcheck="false">Negocio
+Qualificar o Lead, entender necessidades, elaborar proposta e negociar fechamento.</div></div><div class="card L2 M2" data-id="2.1" style="left: -2980.559586px; top: 431.602337px;"><div class="card-head" contenteditable="true" spellcheck="false">2.1. Coleta de Parametros</div><div class="card-content" contenteditable="true" spellcheck="false">Coletar informacoes essenciais do Lead (necessidades, escopo, prazos) para elaboracao do orcamento.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Administrativo
+Entregavel: Formulario de Briefing Inicial</div></div><div class="card L2 M2" data-id="2.2" style="left: -2772.081764px; top: 429.391495px;"><div class="card-head" contenteditable="true" spellcheck="false">2.2. Consulta Operacional</div><div class="card-content" contenteditable="true" spellcheck="false">(Ponto de Controle)
+Consultar a Coordenacao de Projetos para analisar capacidade do Pipeline e validar viabilidade de prazo.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Coordenacao
+Entregavel: Validacao de Pipeline</div></div><div class="card L2 M2" data-id="2.3" style="left: -2557.976343px; top: 429.847063px;"><div class="card-head" contenteditable="true" spellcheck="false">2.3. Elaboracao do Orcamento</div><div class="card-content" contenteditable="true" spellcheck="false">Confeccionar o orcamento detalhado com base nos parametros coletados e na validacao operacional.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao
+Entregavel: Planilha de Orcamento</div></div><div class="card L2 M2" data-id="2.4" style="left: -2349.351131px; top: 431.367854px;"><div class="card-head" contenteditable="true" spellcheck="false">2.4. Montagem e Envio da Proposta</div><div class="card-content" contenteditable="true" spellcheck="false">Montar a Proposta Comercial (Revisao 00) e envia-la ao Lead.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Administrativo
+Entregavel: Proposta Comercial (Rev. 00)</div></div><div class="card L2 M2" data-id="2.5" style="left: -2134.220683px; top: 429.666175px;"><div class="card-head" contenteditable="true" spellcheck="false">2.5. Follow-up e Negociacao</div><div class="card-content" contenteditable="true" spellcheck="false">Realizar o acompanhamento da Proposta e negociar ajustes de escopo e valor.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao
+Entregavel: Registro de FUP no Mini CRM</div></div><div class="card L2 M2" data-id="2.6" style="left: -1920.758416px; top: 429.833664px;"><div class="card-head" contenteditable="true" spellcheck="false">2.6. Revisao da Proposta</div><div class="card-content" contenteditable="true" spellcheck="false">(Se necessario) Ajustar a Proposta conforme negociacao, incrementando Revisao (Rev. 01, 02, etc.).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Administrativo
+Entregavel: Proposta Comercial Atualizada</div></div><div class="card L2 M2" data-id="2.7" style="left: -1710.297535px; top: 428.232478px;"><div class="card-head" contenteditable="true" spellcheck="false">2.7. Registro da Decisao</div><div class="card-content" contenteditable="true" spellcheck="false">Registrar o resultado da negociacao no MiniCRM.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Status Final (Fechado/Perdido)</div></div><div class="card L2 M2" data-id="2.8" style="left: -1499.783057px; top: 432.446477px;"><div class="card-head" contenteditable="true" spellcheck="false">2.8. Retroalimentacao</div><div class="card-content" contenteditable="true" spellcheck="false">(Proposta Perdida)
+Analisar licoes aprendidas e encaminhar insights para Marketing.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Administrativo
+Entregavel: Registro de Licoes Aprendidas</div></div><div class="card L2 M2" data-id="2.9" style="left: -1288.196656px; top: 436.037421px;"><div class="card-head" contenteditable="true" spellcheck="false">2.9. Transicao para Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">(Proposta Fechada)
+Encaminhar o Lead para o Macroprocesso de Contrato.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Alerta de Fechamento</div></div><div class="card L1 M3" data-id="m3" style="left: -207.085916px; top: 280.619664px;"><div class="card-head" contenteditable="true" spellcheck="false">3. Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">Formalizar a relacao com o cliente, coletar dados cadastrais, emitir documentos fiscais e financeiros.</div></div><div class="card L2 M3" data-id="3.1" style="left: -1040.589929px; top: 665.837734px;"><div class="card-head" contenteditable="true" spellcheck="false">3.1. Boas-Vindas e Coleta de Dados</div><div class="card-content" contenteditable="true" spellcheck="false">Receber o novo Cliente e solicitar dados cadastrais (incluindo dados de contato e data de aniversario).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Ficha Cadastral do Cliente</div></div><div class="card L2 M3" data-id="3.2" style="left: -833.385016px; top: 666.293301px;"><div class="card-head" contenteditable="true" spellcheck="false">3.2. Criacao de Pasta na Rede</div><div class="card-content" contenteditable="true" spellcheck="false">Criar a pasta do novo Cliente/Projeto na rede interna, seguindo o padrao de nomenclatura.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Pasta de Projeto na Rede</div></div><div class="card L2 M3" data-id="3.3" style="left: -623.426599px; top: 669.301387px;"><div class="card-head" contenteditable="true" spellcheck="false">3.3. Elaboracao do Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">Confeccionar o Contrato com base na Proposta Fechada.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Minuta do Contrato</div></div><div class="card L2 M3" data-id="3.4" style="left: -411.002758px; top: 669.448776px;"><div class="card-head" contenteditable="true" spellcheck="false">3.4. Revisao do Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">(Ponto de Controle)
+Revisao do Contrato por uma segunda pessoa para evitar erros.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo/Direcao
+Entregavel: Contrato Revisado</div></div><div class="card L2 M3" data-id="3.5" style="left: -201.319021px; top: 672.731542px;"><div class="card-head" contenteditable="true" spellcheck="false">3.5. Assinatura do Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">Submeter o Contrato para assinatura digital (primeiro a Direcao, depois o Cliente).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Contrato Assinado</div></div><div class="card L2 M3" data-id="3.6" style="left: 14.675665px; top: 674.366226px;"><div class="card-head" contenteditable="true" spellcheck="false">3.6. Emissao de Boletos</div><div class="card-content" contenteditable="true" spellcheck="false">Emitir boletos bancarios (geralmente 5 parcelas) conforme o Contrato e envia-los ao Cliente.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Boletos Bancarios</div></div><div class="card L2 M3" data-id="3.7" style="left: 237.104217px; top: 672.852134px;"><div class="card-head" contenteditable="true" spellcheck="false">3.7. Cadastro e Carga no ERP</div><div class="card-content" contenteditable="true" spellcheck="false">Realizar os cadastros e cargas de dados no sistema ERP:</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Registros no ERP</div></div><div class="card L3 M3" data-id="3.7a" style="left: 63.036985px; top: 918.383238px;"><div class="card-head" contenteditable="true" spellcheck="false">a) Cadastro do Cliente</div><div class="card-content" contenteditable="true" spellcheck="false">Cadastrar ou atualizar dados do Cliente no ERP.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Cliente Cadastrado</div></div><div class="card L3 M3" data-id="3.7b" style="left: 261.10398px; top: 918.78521px;"><div class="card-head" contenteditable="true" spellcheck="false">b) Criacao do Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">Criacao do Contrato vinculado a Proposta.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Contrato Registrado</div></div><div class="card L3 M3" data-id="3.7c" style="left: 453.201701px; top: 922.496745px;"><div class="card-head" contenteditable="true" spellcheck="false">c) Criacao do Projeto</div><div class="card-content" contenteditable="true" spellcheck="false">Criacao do Projeto com identificadores e dados do Contrato.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Projeto Criado</div></div><div class="card L3 M3" data-id="3.7d" style="left: 651.543377px; top: 923.923743px;"><div class="card-head" contenteditable="true" spellcheck="false">d) Registro dos Boletos</div><div class="card-content" contenteditable="true" spellcheck="false">Registro dos Boletos (Contas a Receber) e agendamento de vencimentos.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Contas a Receber Lancadas</div></div><div class="card L2 M3" data-id="3.8" style="left: 811.130395px; top: 689.667934px;"><div class="card-head" contenteditable="true" spellcheck="false">3.8. Acionamento da Coordenacao</div><div class="card-content" contenteditable="true" spellcheck="false">Informar a Coordenacao de Projetos sobre o novo Contrato/Projeto para iniciar a Operacao.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Administrativo
+Entregavel: Notificacao a Coordenacao</div></div><div class="card L1 M4" data-id="m4" style="left: 3301.5px; top: 210px;"><div class="card-head" contenteditable="true" spellcheck="false">4. Operacao</div><div class="card-content" contenteditable="true" spellcheck="false">Planejar, executar, monitorar e controlar o projeto, garantindo entrega dentro do escopo, prazo e qualidade.</div></div><div class="card L2 M4" data-id="4.1" style="left: 2746.238199px; top: 469.628826px;"><div class="card-head" contenteditable="true" spellcheck="false">4.1. Boas-Vindas e Alinhamento</div><div class="card-content" contenteditable="true" spellcheck="false">Receber o Cliente, reforcar o conhecimento sobre suas necessidades e fazer a 'passagem de bastao' da etapa de Contrato.
+
+Criacao do grupo de WhatsApp com mensagem de boas-vindas.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Comunicacao de Boas-Vindas + Grupo WhatsApp</div></div><div class="card L2 M4" data-id="4.2" style="left: 2963.492395px; top: 475.115734px;"><div class="card-head" contenteditable="true" spellcheck="false">4.2. Detalhamento do Cronograma</div><div class="card-content" contenteditable="true" spellcheck="false">Detalhar o planejamento do projeto, incluindo etapas do contrato e datas previstas, no sistema de gestao.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Cronograma Detalhado / Linha do Tempo</div></div><div class="card L2 M4" data-id="4.3" style="left: 3183.560391px; top: 477.547661px;"><div class="card-head" contenteditable="true" spellcheck="false">4.3. Agendamento de Tarefas Iniciais</div><div class="card-content" contenteditable="true" spellcheck="false">ETAPA INICIAL DA OPERACAO
+Coordenar com o Cliente as datas de:
+1) Entrevista e Briefing
+2) Levantamento de Campo</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Agendamento Confirmado</div></div><div class="card L2 M4" data-id="4.4" style="left: 3410.401645px; top: 479.718306px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4. Execucao das Etapas do Contrato</div><div class="card-content" contenteditable="true" spellcheck="false">Desenvolvimento do Projeto
+Executar as fases do projeto conforme o escopo contratado (Clausula 2.1).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Equipe de Projeto
+Entregavel: Entregaveis de cada Etapa</div></div><div class="card L3 M4" data-id="4.4.1" style="left: 2604.683098px; top: 1184.38107px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.1. Estudos Preliminares</div><div class="card-content" contenteditable="true" spellcheck="false">1. Entrevista e Briefing
+2. Levantamento da construcao (medicao in loco) + registro fotografico
+3. Transcricao da medicao para software</div><div class="card-meta" contenteditable="true" spellcheck="false">Ponto de Controle: Inicio do Prazo - Pagamento da 1a parcela e Levantamento</div></div><div class="card L3 M4" data-id="4.4.2" style="left: 2803.714825px; top: 1179.584212px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.2. Anteprojeto Fase 01</div><div class="card-content" contenteditable="true" spellcheck="false">1. Apresentacao da planta de layout</div><div class="card-meta" contenteditable="true" spellcheck="false">Aprovacao: Aprovacao do layout por e-mail</div></div><div class="card L3 M4" data-id="4.4.3" style="left: 3009.667158px; top: 1180.528844px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.3. Anteprojeto Fase 02 [NOVA]</div><div class="card-content" contenteditable="true" spellcheck="false">1. Perspectiva com imagens renderizadas (3D)
+2. Pre-selecao de materiais
+3. Apresentacao e discussao das solucoes
+4. Estudo de 01 nova possibilidade (se necessario)</div><div class="card-meta" contenteditable="true" spellcheck="false">Ponto de Controle: Aprovacao das imagens 3D</div></div><div class="card L3 M4" data-id="4.4.4" style="left: 3209.59662px; top: 1186.129645px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.4. Projeto Pre-executivo</div><div class="card-content" contenteditable="true" spellcheck="false">1. Planta layout cotada
+2. Quantitativo de materiais
+3. Lista de loucas e metais
+4. Detalhamentos de pedras</div><div class="card-meta" contenteditable="true" spellcheck="false">Aprovacao: Orcamentos OU autorizacao junto com o cliente de seguir executivo conforme orcado</div></div><div class="card L3 M4" data-id="4.4.5" style="left: 3413.686486px; top: 1188.956843px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.5. Revisao Final Anteprojeto</div><div class="card-content" contenteditable="true" spellcheck="false">Compatibilizacao de todo o anteprojeto de acordo com as definicoes.</div><div class="card-meta" contenteditable="true" spellcheck="false">Aprovacao: Aprovacao do Pre-executivo e das imagens revisadas</div></div><div class="card L3 M4" data-id="4.4.6" style="left: 3610.239389px; top: 1194.517447px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.6. Projeto Executivo</div><div class="card-content" contenteditable="true" spellcheck="false">Plantas de demolicao, construcao, piso, forro, pontos eletricos/hidraulicos, luminotecnico, areas molhadas, detalhamento de fachadas, planta de acabamentos.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entrega: Apos entrega do Anteprojeto Revisado</div></div><div class="card L3 M4" data-id="4.4.7" style="left: 3809.713284px; top: 1199.749774px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.7. Revisao Executivo [NOVA]</div><div class="card-content" contenteditable="true" spellcheck="false">Todas as plantas revisadas conforme reuniao de alinhamento executivo.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entrega: Entrega de todos os projetos executivos</div></div><div class="card L3 M4" data-id="4.4.8" style="left: 4007.532397px; top: 1201.505048px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.8. Detalhamentos</div><div class="card-content" contenteditable="true" spellcheck="false">Detalhamento de vidros/espelhos, Design de moveis a serem executados, Detalhamentos complementares.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entrega: Apos entrega do Projeto Executivo</div></div><div class="card L3 M4" data-id="4.4.9" style="left: 4203.596235px; top: 1201.853424px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.9. Acompanhamentos</div><div class="card-content" contenteditable="true" spellcheck="false">10 visitas em lojas e 01 acompanhamento para producao.
+(Visitas extras sao servicos complementares).</div><div class="card-meta" contenteditable="true" spellcheck="false">Registro: Registro de Visitas Tecnicas no sistema</div></div><div class="card L3 M4" data-id="4.4.10" style="left: 4401.348353px; top: 1207.333633px;"><div class="card-head" contenteditable="true" spellcheck="false">4.4.10. Producao [NOVA]</div><div class="card-content" contenteditable="true" spellcheck="false">Etapa dedicada ao acompanhamento de producao.</div><div class="card-meta" contenteditable="true" spellcheck="false">A definir</div></div><div class="card L2 M4" data-id="4.5" style="left: 3779.768535px; top: 477.634755px;"><div class="card-head" contenteditable="true" spellcheck="false">4.5. Monitoramento e Controle</div><div class="card-content" contenteditable="true" spellcheck="false">Acompanhar o projeto em relacao a Linha de Base, ajustando desvios e comunicando status.
+
+Inclui: Assistencia pos-entrega.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Relatorios de Status do Projeto (NOVO)</div></div><div class="card L2 M4" data-id="4.6" style="left: 4167.70646px; top: 488.809558px;"><div class="card-head" contenteditable="true" spellcheck="false">4.6. Entrega Final</div><div class="card-content" contenteditable="true" spellcheck="false">Concluir o projeto e realizar a entrega final ao Cliente.
+
+Entrega da caixa VM com todos os projetos impressos.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao/Equipe
+Entregavel: Termo de Entrega + Caixa VM</div></div><div class="card L2 M4" data-id="4.7" style="left: 4863.275371px; top: 507.306939px;"><div class="card-head" contenteditable="true" spellcheck="false">4.7. Gestao de Registros Operacionais</div><div class="card-content" contenteditable="true" spellcheck="false">(Novo) Gerar, controlar e arquivar os documentos criticos da Operacao.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Registros Operacionais</div></div><div class="card L3 M4" data-id="4.7.1" style="left: 4665.733014px; top: 1204.794514px;"><div class="card-head" contenteditable="true" spellcheck="false">4.7.1. Geracao de Registros</div><div class="card-content" contenteditable="true" spellcheck="false">Gerar e formalizar documentos criticos (Atas de Reuniao, Registros de Visitas Tecnicas, Relatorios de Levantamento).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao/Equipe
+Entregavel: Atas e Relatorios Formalizados</div></div><div class="card L3 M4" data-id="4.7.2" style="left: 4863.733014px; top: 1204.794514px;"><div class="card-head" contenteditable="true" spellcheck="false">4.7.2. Controle de Alteracoes Informais</div><div class="card-content" contenteditable="true" spellcheck="false">Capturar, registrar e arquivar evidencias de solicitacoes de mudancas informais (Ex: prints de WhatsApp).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Evidencias de Mudanca</div></div><div class="card L3 M4" data-id="4.7.3" style="left: 5061.733014px; top: 1204.794514px;"><div class="card-head" contenteditable="true" spellcheck="false">4.7.3. Rastreabilidade e Arquivamento</div><div class="card-content" contenteditable="true" spellcheck="false">Manter rastreabilidade entre solicitacoes de mudanca e revisoes de projeto. Arquivar todos os registros na pasta do projeto.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao/Equipe
+Entregavel: Matriz de Rastreabilidade</div></div><div class="card L3 M4" data-id="4.7.4" style="left: 5259.733014px; top: 1204.794514px;"><div class="card-head" contenteditable="true" spellcheck="false">4.7.4. Acionamento de Cobranca</div><div class="card-content" contenteditable="true" spellcheck="false">Acionar o Administrativo/Financeiro para cobranca de taxas adicionais em caso de Alteracao de Projeto (Clausula 8.2).</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Coordenacao
+Entregavel: Notificacao de Cobranca</div></div><div class="card L1 M5" data-id="m5" style="left: 6754.5px; top: 210px;"><div class="card-head" contenteditable="true" spellcheck="false">5. Backoffice</div><div class="card-content" contenteditable="true" spellcheck="false">Suporte administrativo, financeiro, de RH e tecnologico para os demais macroprocessos.</div></div><div class="card L2 M5" data-id="5.1" style="left: 5490px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">5.1. Financas</div><div class="card-content" contenteditable="true" spellcheck="false">Contas a Pagar e Receber</div></div><div class="card L3 M5" data-id="5.1.1" style="left: 5299.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.1.1. Lancamento de Contas</div><div class="card-content" contenteditable="true" spellcheck="false">Registrar todas as Contas a Pagar e Contas a Receber no ERP (incluindo boletos da Etapa 3.7).</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Lancamentos de Contas no ERP</div></div><div class="card L3 M5" data-id="5.1.2" style="left: 5497.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.1.2. Controle de Competencia e Caixa</div><div class="card-content" contenteditable="true" spellcheck="false">Monitorar datas de vencimento (Caixa Planejado) e recebimento/pagamento (Caixa Realizado). Inadimplencia: multa 10% + correcao apos 30 dias.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Relatorio de Fluxo de Caixa</div></div><div class="card L3 M5" data-id="5.1.3" style="left: 5695.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.1.3. Compatibilizacao Bancaria</div><div class="card-content" contenteditable="true" spellcheck="false">Conferir o Caixa Realizado com o extrato bancario.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Registro de Compatibilizacao</div></div><div class="card L2 M5" data-id="5.2" style="left: 6175.5px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">5.2. Contabilidade</div><div class="card-content" contenteditable="true" spellcheck="false">Gestao Fiscal e de NFs</div></div><div class="card L3 M5" data-id="5.2.1" style="left: 5886px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.2.1. Emissao de NFS-e</div><div class="card-content" contenteditable="true" spellcheck="false">Emitir a NFS-e no site da Prefeitura assim que o valor de um boleto for recebido.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Nota Fiscal Eletronica de Saida</div></div><div class="card L3 M5" data-id="5.2.2" style="left: 6084px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.2.2. Vinculacao de NFS-e no ERP</div><div class="card-content" contenteditable="true" spellcheck="false">Vincular dados da NFS-e ao lancamento de Contas a Receber no ERP.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Lancamento Vinculado</div></div><div class="card L3 M5" data-id="5.2.3" style="left: 6282px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.2.3. Gestao de NFs de Entrada</div><div class="card-content" contenteditable="true" spellcheck="false">Receber, conferir e registrar no ERP as Notas Fiscais de servicos (PJs, Fornecedores) e produtos.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: NF-e/NFS-e de Entrada Registrada</div></div><div class="card L3 M5" data-id="5.2.4" style="left: 6480px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.2.4. Monitoramento Contabil</div><div class="card-content" contenteditable="true" spellcheck="false">Acompanhar Contabilidade externa, garantindo correta emissao e envio de documentos fiscais.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Relatorios Contabeis</div></div><div class="card L2 M5" data-id="5.3" style="left: 6958.5px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">5.3. Gestao de Pessoas</div><div class="card-content" contenteditable="true" spellcheck="false">Recursos Humanos</div></div><div class="card L3 M5" data-id="5.3.1" style="left: 6669px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.3.1. Cadastro de Profissionais</div><div class="card-content" contenteditable="true" spellcheck="false">Registrar dados de entrada, contratos (PJ) e informacoes essenciais dos colaboradores.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Ficha Cadastral de Colaborador</div></div><div class="card L3 M5" data-id="5.3.2" style="left: 6867px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.3.2. Controle de Frequencia</div><div class="card-content" contenteditable="true" spellcheck="false">Registrar faltas, ferias e ausencias temporarias.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Registro de Ferias/Ausencias</div></div><div class="card L3 M5" data-id="5.3.3" style="left: 7065px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.3.3. Pagamento de PJ</div><div class="card-content" contenteditable="true" spellcheck="false">Receber as NFs dos prestadores de servico (PJ) e processar pagamentos mensais.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Comprovantes de Pagamento</div></div><div class="card L3 M5" data-id="5.3.4" style="left: 7263px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.3.4. Avaliacao e Feedback</div><div class="card-content" contenteditable="true" spellcheck="false">Realizar avaliacoes formais e feedbacks minimamente a cada 6 meses.</div><div class="card-meta" contenteditable="true" spellcheck="false">Resp: Direcao/Coordenacao
+Entregavel: Registro de Feedback Formal</div></div><div class="card L2 M5" data-id="5.4" style="left: 7839px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4. Suprimentos e Inventario</div><div class="card-content" contenteditable="true" spellcheck="false">Documentacao de Apoio</div></div><div class="card L3 M5" data-id="5.4.1" style="left: 7450.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4.1. Gestao de Suprimentos</div><div class="card-content" contenteditable="true" spellcheck="false">Manter estoque de suprimentos essenciais em niveis adequados.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Inventario de Suprimentos</div></div><div class="card L3 M5" data-id="5.4.2" style="left: 7648.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4.2. Inventario de Ativos</div><div class="card-content" contenteditable="true" spellcheck="false">Cadastrar e manter inventario de todos os ativos da empresa.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Ficha de Inventario de Ativo</div></div><div class="card L3 M5" data-id="5.4.3" style="left: 7846.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4.3. Gestao de TI</div><div class="card-content" contenteditable="true" spellcheck="false">Monitorar e registrar atualizacoes de software/hardware, datas de compras e manutencoes.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Registro de Manutencao de TI</div></div><div class="card L3 M5" data-id="5.4.4" style="left: 8044.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4.4. Boas Praticas de TI</div><div class="card-content" contenteditable="true" spellcheck="false">Garantir a aplicacao das boas praticas de seguranca e uso de TI.</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Diretrizes de Seguranca de TI</div></div><div class="card L3 M5" data-id="5.4.5" style="left: 8242.5px; top: 480px;"><div class="card-head" contenteditable="true" spellcheck="false">5.4.5. Gestao de Templates</div><div class="card-content" contenteditable="true" spellcheck="false">Manter e disponibilizar os modelos padrao de documentos (templates).</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Repositorio de Templates</div></div><div class="card L1 M6" data-id="m6" style="left: 8842.5px; top: 210px;"><div class="card-head" contenteditable="true" spellcheck="false">6. Gestao de Documentos</div><div class="card-content" contenteditable="true" spellcheck="false">Controle de revisao de todos os documentos que circulam entre Negocio e Mundo Externo.</div></div><div class="card L2 M6" data-id="6.1" style="left: 8424px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">6.1. Revisao 00</div><div class="card-content" contenteditable="true" spellcheck="false">Primeira versao do documento enviada ao Cliente.</div><div class="card-meta" contenteditable="true" spellcheck="false">Exemplo: Proposta inicial</div></div><div class="card L2 M6" data-id="6.2" style="left: 8637px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">6.2. Revisao 01, 02...</div><div class="card-content" contenteditable="true" spellcheck="false">Versoes subsequentes apos negociacao ou ajustes solicitados.</div><div class="card-meta" contenteditable="true" spellcheck="false">Exemplo: Proposta revisada apos pedido de reducao de escopo</div></div><div class="card L2 M6" data-id="6.3" style="left: 8850px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">6.3. Controle Interno</div><div class="card-content" contenteditable="true" spellcheck="false">Pastas na rede atualizadas, garantindo que o arquivo mais recente seja o de referencia.</div><div class="card-meta" contenteditable="true" spellcheck="false">Exemplo: Proposta_ClienteX_Rev02.pdf</div></div><div class="card L2 M6" data-id="6.4" style="left: 9063px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">6.4. Alteracao de Projeto</div><div class="card-content" contenteditable="true" spellcheck="false">Toda solicitacao de modificacao apos aprovacao definitiva.
+(Ponto de Controle: Gerar cobranca conforme Clausula 8.2.)</div><div class="card-meta" contenteditable="true" spellcheck="false">Exemplo: R$200 por prancha</div></div><div class="card L2 M6" data-id="6.5" style="left: 9276px; top: 355px;"><div class="card-head" contenteditable="true" spellcheck="false">6.5. Propriedade Intelectual</div><div class="card-content" contenteditable="true" spellcheck="false">(Controle de Risco)
+Garantir que arquivos .dwg e .skp nao sejam entregues ao cliente (Clausula 2).</div><div class="card-meta" contenteditable="true" spellcheck="false">Entregavel: Recusa formal de entrega de arquivos editaveis</div></div></div>
+</div>
+
+<div id="flow-area">
+  <div id="flow-world"></div>
+</div>
+
+<div id="toast" class="">Salvo com sucesso!</div>
+
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="copySelected()"><span class="ctx-icon">📋</span> Copiar Card <span class="ctx-key">Cmd+C</span></div>
+  <div class="ctx-item" onclick="pasteCard()"><span class="ctx-icon">📄</span> Colar Card <span class="ctx-key">Cmd+V</span></div>
+  <div class="ctx-item" onclick="duplicateInPlace()"><span class="ctx-icon">➕</span> Duplicar Aqui</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="openColorPicker()"><span class="ctx-icon">🎨</span> Alterar Cor</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="deleteSelected()" style="color:#c62828;"><span class="ctx-icon">🗑</span> Excluir</div>
+</div>
+
+<div id="color-picker">
+  <div class="cp-title">Cor do Card</div>
+  <div class="cp-grid" id="cp-grid"></div>
+  <div class="cp-custom">
+    <input type="color" id="cp-custom-input" value="#00695c" oninput="applyCustomColor(this.value)">
+    <span>Cor personalizada</span>
+  </div>
+</div>
+
+<div id="log-panel">
+  <div id="log-panel-header">
+    <span>Historico de Revisoes</span>
+    <button onclick="toggleLogPanel()">&times;</button>
+  </div>
+  <div style="padding:4px 16px; background:#fafafa; border-bottom:1px solid #eee; display:flex; gap:6px; align-items:center;">
+    <input id="log-filter" type="text" placeholder="Filtrar por card ou texto..." oninput="renderLog()">
+  </div>
+  <div id="log-panel-body"></div>
+  <div id="log-panel-footer">
+    <button onclick="exportLog()">Exportar CSV</button>
+    <button onclick="clearLog()">Limpar Historico</button>
+  </div>
+</div>
+
+<div id="tutorial">
+  <div id="tutorial-header" onclick="toggleTutorial()">
+    <span>Guia Rapido</span>
+    <span id="tutorial-toggle">&#9660;</span>
+  </div>
+  <div id="tutorial-body">
+    <div class="tut-section">Navegacao</div>
+    <table>
+      <tr><td>Mover canvas</td><td>Arraste o fundo</td></tr>
+      <tr><td>Zoom</td><td>Scroll do mouse</td></tr>
+      <tr><td>Ajustar tela</td><td>Botao "Ajustar Tela"</td></tr>
+    </table>
+    <div class="tut-section">Cards</div>
+    <table>
+      <tr><td>Mover card</td><td>Arraste pelo header colorido</td></tr>
+      <tr><td>Editar texto</td><td>Clique no corpo ou rodape</td></tr>
+      <tr><td>Editar titulo</td><td>Duplo clique no header</td></tr>
+      <tr><td>Menu opcoes</td><td>Botao direito no card</td></tr>
+    </table>
+    <div class="tut-section">Selecao</div>
+    <table>
+      <tr><td>Multi-selecao</td><td>Shift + clique nos cards</td></tr>
+      <tr><td>Laco de selecao</td><td>Shift + arraste no fundo</td></tr>
+      <tr><td>Selecionar tudo</td><td>Cmd + A</td></tr>
+      <tr><td>Limpar selecao</td><td>Esc ou clique no fundo</td></tr>
+    </table>
+    <div class="tut-section">Copiar / Cores</div>
+    <table>
+      <tr><td>Copiar</td><td>Cmd + C</td></tr>
+      <tr><td>Colar</td><td>Cmd + V</td></tr>
+      <tr><td>Duplicar</td><td>Cmd + D</td></tr>
+      <tr><td>Excluir</td><td>Delete</td></tr>
+      <tr><td>Alterar cor</td><td>Botao direito > Alterar Cor</td></tr>
+    </table>
+    <div class="tut-section">Salvar</div>
+    <table>
+      <tr><td>Salvar</td><td>Cmd + S ou botao "Salvar"</td></tr>
+      <tr><td>Baixar arquivo</td><td>Botao "Baixar HTML"</td></tr>
+      <tr><td>Historico</td><td>Botao "Historico"</td></tr>
+    </table>
+  </div>
+</div>
+
+<div id="bottombar">
+  <span>EAP/WBS VM+Arquitetos</span>
+  <span class="brand">AVAS 2026 - Todos os direitos reservados</span>
+</div>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+const DATA = {
+  id:"root", label:"Modelo de EAP/WBS VM", body:"VM+Arquitetos\nManual de Procedimentos Operacionais (Revisado 4)", level:0, macro:0,
+  children:[
+    { id:"m1", label:"1. Marketing", body:"Mundo Externo\nAtrair e engajar potenciais clientes (Leads) alinhados com a Persona Ideal.", level:1, macro:1, children:[
+      { id:"1.1", label:"1.1. Posicionamento e Conteudo", body:"Definir e manter o posicionamento da marca e criar conteudo para os canais midiaticos.", meta:"Resp: Marketing/Direcao\nEntregavel: Plano de Conteudo, Diretrizes de Marca", level:2, macro:1 },
+      { id:"1.2", label:"1.2. Execucao e Relacionamento", body:"Publicar conteudo, realizar atividades de relacionamento e manter a presenca da marca no mercado.", meta:"Resp: Marketing/Equipe\nEntregavel: Relatorios de Engajamento", level:2, macro:1 },
+      { id:"1.3", label:"1.3. Conexao com a Persona", body:"Acompanhar a interacao do publico com o conteudo, buscando a conexao com a Persona(s) Ideal.", meta:"Resp: Marketing\nEntregavel: Analise de Performance de Conteudo", level:2, macro:1 },
+      { id:"1.4", label:"1.4. Captacao de Lead", body:"Receber o contato do potencial cliente (Lead) e encaminha-lo para o Macroprocesso de Proposta.", meta:"Resp: Marketing/Administrativo\nEntregavel: Registro do Lead no Mini CRM", level:2, macro:1 }
+    ]},
+    { id:"m2", label:"2. Proposta", body:"Negocio\nQualificar o Lead, entender necessidades, elaborar proposta e negociar fechamento.", level:1, macro:2, children:[
+      { id:"2.1", label:"2.1. Coleta de Parametros", body:"Coletar informacoes essenciais do Lead (necessidades, escopo, prazos) para elaboracao do orcamento.", meta:"Resp: Direcao/Administrativo\nEntregavel: Formulario de Briefing Inicial", level:2, macro:2 },
+      { id:"2.2", label:"2.2. Consulta Operacional", body:"(Ponto de Controle)\nConsultar a Coordenacao de Projetos para analisar capacidade do Pipeline e validar viabilidade de prazo.", meta:"Resp: Direcao/Coordenacao\nEntregavel: Validacao de Pipeline", level:2, macro:2 },
+      { id:"2.3", label:"2.3. Elaboracao do Orcamento", body:"Confeccionar o orcamento detalhado com base nos parametros coletados e na validacao operacional.", meta:"Resp: Direcao\nEntregavel: Planilha de Orcamento", level:2, macro:2 },
+      { id:"2.4", label:"2.4. Montagem e Envio da Proposta", body:"Montar a Proposta Comercial (Revisao 00) e envia-la ao Lead.", meta:"Resp: Direcao/Administrativo\nEntregavel: Proposta Comercial (Rev. 00)", level:2, macro:2 },
+      { id:"2.5", label:"2.5. Follow-up e Negociacao", body:"Realizar o acompanhamento da Proposta e negociar ajustes de escopo e valor.", meta:"Resp: Direcao\nEntregavel: Registro de FUP no Mini CRM", level:2, macro:2 },
+      { id:"2.6", label:"2.6. Revisao da Proposta", body:"(Se necessario) Ajustar a Proposta conforme negociacao, incrementando Revisao (Rev. 01, 02, etc.).", meta:"Resp: Direcao/Administrativo\nEntregavel: Proposta Comercial Atualizada", level:2, macro:2 },
+      { id:"2.7", label:"2.7. Registro da Decisao", body:"Registrar o resultado da negociacao no MiniCRM.", meta:"Resp: Administrativo\nEntregavel: Status Final (Fechado/Perdido)", level:2, macro:2 },
+      { id:"2.8", label:"2.8. Retroalimentacao", body:"(Proposta Perdida)\nAnalisar licoes aprendidas e encaminhar insights para Marketing.", meta:"Resp: Direcao/Administrativo\nEntregavel: Registro de Licoes Aprendidas", level:2, macro:2 },
+      { id:"2.9", label:"2.9. Transicao para Contrato", body:"(Proposta Fechada)\nEncaminhar o Lead para o Macroprocesso de Contrato.", meta:"Resp: Administrativo\nEntregavel: Alerta de Fechamento", level:2, macro:2 }
+    ]},
+    { id:"m3", label:"3. Contrato", body:"Formalizar a relacao com o cliente, coletar dados cadastrais, emitir documentos fiscais e financeiros.", level:1, macro:3, children:[
+      { id:"3.1", label:"3.1. Boas-Vindas e Coleta de Dados", body:"Receber o novo Cliente e solicitar dados cadastrais (incluindo dados de contato e data de aniversario).", meta:"Resp: Administrativo\nEntregavel: Ficha Cadastral do Cliente", level:2, macro:3 },
+      { id:"3.2", label:"3.2. Criacao de Pasta na Rede", body:"Criar a pasta do novo Cliente/Projeto na rede interna, seguindo o padrao de nomenclatura.", meta:"Resp: Administrativo\nEntregavel: Pasta de Projeto na Rede", level:2, macro:3 },
+      { id:"3.3", label:"3.3. Elaboracao do Contrato", body:"Confeccionar o Contrato com base na Proposta Fechada.", meta:"Resp: Administrativo\nEntregavel: Minuta do Contrato", level:2, macro:3 },
+      { id:"3.4", label:"3.4. Revisao do Contrato", body:"(Ponto de Controle)\nRevisao do Contrato por uma segunda pessoa para evitar erros.", meta:"Resp: Administrativo/Direcao\nEntregavel: Contrato Revisado", level:2, macro:3 },
+      { id:"3.5", label:"3.5. Assinatura do Contrato", body:"Submeter o Contrato para assinatura digital (primeiro a Direcao, depois o Cliente).", meta:"Resp: Administrativo\nEntregavel: Contrato Assinado", level:2, macro:3 },
+      { id:"3.6", label:"3.6. Emissao de Boletos", body:"Emitir boletos bancarios (geralmente 5 parcelas) conforme o Contrato e envia-los ao Cliente.", meta:"Resp: Administrativo\nEntregavel: Boletos Bancarios", level:2, macro:3 },
+      { id:"3.7", label:"3.7. Cadastro e Carga no ERP", body:"Realizar os cadastros e cargas de dados no sistema ERP:", meta:"Resp: Administrativo\nEntregavel: Registros no ERP", level:2, macro:3, children:[
+        { id:"3.7a", label:"a) Cadastro do Cliente", body:"Cadastrar ou atualizar dados do Cliente no ERP.", meta:"Entregavel: Cliente Cadastrado", level:3, macro:3 },
+        { id:"3.7b", label:"b) Criacao do Contrato", body:"Criacao do Contrato vinculado a Proposta.", meta:"Entregavel: Contrato Registrado", level:3, macro:3 },
+        { id:"3.7c", label:"c) Criacao do Projeto", body:"Criacao do Projeto com identificadores e dados do Contrato.", meta:"Entregavel: Projeto Criado", level:3, macro:3 },
+        { id:"3.7d", label:"d) Registro dos Boletos", body:"Registro dos Boletos (Contas a Receber) e agendamento de vencimentos.", meta:"Entregavel: Contas a Receber Lancadas", level:3, macro:3 }
+      ]},
+      { id:"3.8", label:"3.8. Acionamento da Coordenacao", body:"Informar a Coordenacao de Projetos sobre o novo Contrato/Projeto para iniciar a Operacao.", meta:"Resp: Administrativo\nEntregavel: Notificacao a Coordenacao", level:2, macro:3 }
+    ]},
+    { id:"m4", label:"4. Operacao", body:"Planejar, executar, monitorar e controlar o projeto, garantindo entrega dentro do escopo, prazo e qualidade.", level:1, macro:4, children:[
+      { id:"4.1", label:"4.1. Boas-Vindas e Alinhamento", body:"Receber o Cliente, reforcar o conhecimento sobre suas necessidades e fazer a 'passagem de bastao' da etapa de Contrato.\n\nCriacao do grupo de WhatsApp com mensagem de boas-vindas.", meta:"Resp: Coordenacao\nEntregavel: Comunicacao de Boas-Vindas + Grupo WhatsApp", level:2, macro:4 },
+      { id:"4.2", label:"4.2. Detalhamento do Cronograma", body:"Detalhar o planejamento do projeto, incluindo etapas do contrato e datas previstas, no sistema de gestao.", meta:"Resp: Coordenacao\nEntregavel: Cronograma Detalhado / Linha do Tempo", level:2, macro:4 },
+      { id:"4.3", label:"4.3. Agendamento de Tarefas Iniciais", body:"ETAPA INICIAL DA OPERACAO\nCoordenar com o Cliente as datas de:\n1) Entrevista e Briefing\n2) Levantamento de Campo", meta:"Resp: Coordenacao\nEntregavel: Agendamento Confirmado", level:2, macro:4 },
+      { id:"4.4", label:"4.4. Execucao das Etapas do Contrato", body:"Desenvolvimento do Projeto\nExecutar as fases do projeto conforme o escopo contratado (Clausula 2.1).", meta:"Resp: Equipe de Projeto\nEntregavel: Entregaveis de cada Etapa", level:2, macro:4, children:[
+        { id:"4.4.1", label:"4.4.1. Estudos Preliminares", body:"1. Entrevista e Briefing\n2. Levantamento da construcao (medicao in loco) + registro fotografico\n3. Transcricao da medicao para software", meta:"Ponto de Controle: Inicio do Prazo - Pagamento da 1a parcela e Levantamento", level:3, macro:4 },
+        { id:"4.4.2", label:"4.4.2. Anteprojeto Fase 01", body:"1. Apresentacao da planta de layout", meta:"Aprovacao: Aprovacao do layout por e-mail", level:3, macro:4 },
+        { id:"4.4.3", label:"4.4.3. Anteprojeto Fase 02 [NOVA]", body:"1. Perspectiva com imagens renderizadas (3D)\n2. Pre-selecao de materiais\n3. Apresentacao e discussao das solucoes\n4. Estudo de 01 nova possibilidade (se necessario)", meta:"Ponto de Controle: Aprovacao das imagens 3D", level:3, macro:4 },
+        { id:"4.4.4", label:"4.4.4. Projeto Pre-executivo", body:"1. Planta layout cotada\n2. Quantitativo de materiais\n3. Lista de loucas e metais\n4. Detalhamentos de pedras", meta:"Aprovacao: Orcamentos OU autorizacao junto com o cliente de seguir executivo conforme orcado", level:3, macro:4 },
+        { id:"4.4.5", label:"4.4.5. Revisao Final Anteprojeto", body:"Compatibilizacao de todo o anteprojeto de acordo com as definicoes.", meta:"Aprovacao: Aprovacao do Pre-executivo e das imagens revisadas", level:3, macro:4 },
+        { id:"4.4.6", label:"4.4.6. Projeto Executivo", body:"Plantas de demolicao, construcao, piso, forro, pontos eletricos/hidraulicos, luminotecnico, areas molhadas, detalhamento de fachadas, planta de acabamentos.", meta:"Entrega: Apos entrega do Anteprojeto Revisado", level:3, macro:4 },
+        { id:"4.4.7", label:"4.4.7. Revisao Executivo [NOVA]", body:"Todas as plantas revisadas conforme reuniao de alinhamento executivo.", meta:"Entrega: Entrega de todos os projetos executivos", level:3, macro:4 },
+        { id:"4.4.8", label:"4.4.8. Detalhamentos", body:"Detalhamento de vidros/espelhos, Design de moveis a serem executados, Detalhamentos complementares.", meta:"Entrega: Apos entrega do Projeto Executivo", level:3, macro:4 },
+        { id:"4.4.9", label:"4.4.9. Acompanhamentos", body:"10 visitas em lojas e 01 acompanhamento para producao.\n(Visitas extras sao servicos complementares).", meta:"Registro: Registro de Visitas Tecnicas no sistema", level:3, macro:4 },
+        { id:"4.4.10", label:"4.4.10. Producao [NOVA]", body:"Etapa dedicada ao acompanhamento de producao.", meta:"A definir", level:3, macro:4 }
+      ]},
+      { id:"4.5", label:"4.5. Monitoramento e Controle", body:"Acompanhar o projeto em relacao a Linha de Base, ajustando desvios e comunicando status.\n\nInclui: Assistencia pos-entrega.", meta:"Resp: Coordenacao\nEntregavel: Relatorios de Status do Projeto (NOVO)", level:2, macro:4 },
+      { id:"4.6", label:"4.6. Entrega Final", body:"Concluir o projeto e realizar a entrega final ao Cliente.\n\nEntrega da caixa VM com todos os projetos impressos.", meta:"Resp: Coordenacao/Equipe\nEntregavel: Termo de Entrega + Caixa VM", level:2, macro:4 },
+      { id:"4.7", label:"4.7. Gestao de Registros Operacionais", body:"(Novo) Gerar, controlar e arquivar os documentos criticos da Operacao.", meta:"Resp: Coordenacao\nEntregavel: Registros Operacionais", level:2, macro:4, children:[
+        { id:"4.7.1", label:"4.7.1. Geracao de Registros", body:"Gerar e formalizar documentos criticos (Atas de Reuniao, Registros de Visitas Tecnicas, Relatorios de Levantamento).", meta:"Resp: Coordenacao/Equipe\nEntregavel: Atas e Relatorios Formalizados", level:3, macro:4 },
+        { id:"4.7.2", label:"4.7.2. Controle de Alteracoes Informais", body:"Capturar, registrar e arquivar evidencias de solicitacoes de mudancas informais (Ex: prints de WhatsApp).", meta:"Resp: Coordenacao\nEntregavel: Evidencias de Mudanca", level:3, macro:4 },
+        { id:"4.7.3", label:"4.7.3. Rastreabilidade e Arquivamento", body:"Manter rastreabilidade entre solicitacoes de mudanca e revisoes de projeto. Arquivar todos os registros na pasta do projeto.", meta:"Resp: Coordenacao/Equipe\nEntregavel: Matriz de Rastreabilidade", level:3, macro:4 },
+        { id:"4.7.4", label:"4.7.4. Acionamento de Cobranca", body:"Acionar o Administrativo/Financeiro para cobranca de taxas adicionais em caso de Alteracao de Projeto (Clausula 8.2).", meta:"Resp: Coordenacao\nEntregavel: Notificacao de Cobranca", level:3, macro:4 }
+      ]}
+    ]},
+    { id:"m5", label:"5. Backoffice", body:"Suporte administrativo, financeiro, de RH e tecnologico para os demais macroprocessos.", level:1, macro:5, children:[
+      { id:"5.1", label:"5.1. Financas", body:"Contas a Pagar e Receber", meta:"", level:2, macro:5, children:[
+        { id:"5.1.1", label:"5.1.1. Lancamento de Contas", body:"Registrar todas as Contas a Pagar e Contas a Receber no ERP (incluindo boletos da Etapa 3.7).", meta:"Entregavel: Lancamentos de Contas no ERP", level:3, macro:5 },
+        { id:"5.1.2", label:"5.1.2. Controle de Competencia e Caixa", body:"Monitorar datas de vencimento (Caixa Planejado) e recebimento/pagamento (Caixa Realizado). Inadimplencia: multa 10% + correcao apos 30 dias.", meta:"Entregavel: Relatorio de Fluxo de Caixa", level:3, macro:5 },
+        { id:"5.1.3", label:"5.1.3. Compatibilizacao Bancaria", body:"Conferir o Caixa Realizado com o extrato bancario.", meta:"Entregavel: Registro de Compatibilizacao", level:3, macro:5 }
+      ]},
+      { id:"5.2", label:"5.2. Contabilidade", body:"Gestao Fiscal e de NFs", meta:"", level:2, macro:5, children:[
+        { id:"5.2.1", label:"5.2.1. Emissao de NFS-e", body:"Emitir a NFS-e no site da Prefeitura assim que o valor de um boleto for recebido.", meta:"Entregavel: Nota Fiscal Eletronica de Saida", level:3, macro:5 },
+        { id:"5.2.2", label:"5.2.2. Vinculacao de NFS-e no ERP", body:"Vincular dados da NFS-e ao lancamento de Contas a Receber no ERP.", meta:"Entregavel: Lancamento Vinculado", level:3, macro:5 },
+        { id:"5.2.3", label:"5.2.3. Gestao de NFs de Entrada", body:"Receber, conferir e registrar no ERP as Notas Fiscais de servicos (PJs, Fornecedores) e produtos.", meta:"Entregavel: NF-e/NFS-e de Entrada Registrada", level:3, macro:5 },
+        { id:"5.2.4", label:"5.2.4. Monitoramento Contabil", body:"Acompanhar Contabilidade externa, garantindo correta emissao e envio de documentos fiscais.", meta:"Entregavel: Relatorios Contabeis", level:3, macro:5 }
+      ]},
+      { id:"5.3", label:"5.3. Gestao de Pessoas", body:"Recursos Humanos", meta:"", level:2, macro:5, children:[
+        { id:"5.3.1", label:"5.3.1. Cadastro de Profissionais", body:"Registrar dados de entrada, contratos (PJ) e informacoes essenciais dos colaboradores.", meta:"Entregavel: Ficha Cadastral de Colaborador", level:3, macro:5 },
+        { id:"5.3.2", label:"5.3.2. Controle de Frequencia", body:"Registrar faltas, ferias e ausencias temporarias.", meta:"Entregavel: Registro de Ferias/Ausencias", level:3, macro:5 },
+        { id:"5.3.3", label:"5.3.3. Pagamento de PJ", body:"Receber as NFs dos prestadores de servico (PJ) e processar pagamentos mensais.", meta:"Entregavel: Comprovantes de Pagamento", level:3, macro:5 },
+        { id:"5.3.4", label:"5.3.4. Avaliacao e Feedback", body:"Realizar avaliacoes formais e feedbacks minimamente a cada 6 meses.", meta:"Resp: Direcao/Coordenacao\nEntregavel: Registro de Feedback Formal", level:3, macro:5 }
+      ]},
+      { id:"5.4", label:"5.4. Suprimentos e Inventario", body:"Documentacao de Apoio", meta:"", level:2, macro:5, children:[
+        { id:"5.4.1", label:"5.4.1. Gestao de Suprimentos", body:"Manter estoque de suprimentos essenciais em niveis adequados.", meta:"Entregavel: Inventario de Suprimentos", level:3, macro:5 },
+        { id:"5.4.2", label:"5.4.2. Inventario de Ativos", body:"Cadastrar e manter inventario de todos os ativos da empresa.", meta:"Entregavel: Ficha de Inventario de Ativo", level:3, macro:5 },
+        { id:"5.4.3", label:"5.4.3. Gestao de TI", body:"Monitorar e registrar atualizacoes de software/hardware, datas de compras e manutencoes.", meta:"Entregavel: Registro de Manutencao de TI", level:3, macro:5 },
+        { id:"5.4.4", label:"5.4.4. Boas Praticas de TI", body:"Garantir a aplicacao das boas praticas de seguranca e uso de TI.", meta:"Entregavel: Diretrizes de Seguranca de TI", level:3, macro:5 },
+        { id:"5.4.5", label:"5.4.5. Gestao de Templates", body:"Manter e disponibilizar os modelos padrao de documentos (templates).", meta:"Entregavel: Repositorio de Templates", level:3, macro:5 }
+      ]}
+    ]},
+    { id:"m6", label:"6. Gestao de Documentos", body:"Controle de revisao de todos os documentos que circulam entre Negocio e Mundo Externo.", level:1, macro:6, children:[
+      { id:"6.1", label:"6.1. Revisao 00", body:"Primeira versao do documento enviada ao Cliente.", meta:"Exemplo: Proposta inicial", level:2, macro:6 },
+      { id:"6.2", label:"6.2. Revisao 01, 02...", body:"Versoes subsequentes apos negociacao ou ajustes solicitados.", meta:"Exemplo: Proposta revisada apos pedido de reducao de escopo", level:2, macro:6 },
+      { id:"6.3", label:"6.3. Controle Interno", body:"Pastas na rede atualizadas, garantindo que o arquivo mais recente seja o de referencia.", meta:"Exemplo: Proposta_ClienteX_Rev02.pdf", level:2, macro:6 },
+      { id:"6.4", label:"6.4. Alteracao de Projeto", body:"Toda solicitacao de modificacao apos aprovacao definitiva.\n(Ponto de Controle: Gerar cobranca conforme Clausula 8.2.)", meta:"Exemplo: R$200 por prancha", level:2, macro:6 },
+      { id:"6.5", label:"6.5. Propriedade Intelectual", body:"(Controle de Risco)\nGarantir que arquivos .dwg e .skp nao sejam entregues ao cliente (Clausula 2).", meta:"Entregavel: Recusa formal de entrega de arquivos editaveis", level:2, macro:6 }
+    ]}
+  ]
+};
+
+// ============================================================
+//  STATE
+// ============================================================
+const world = document.getElementById('world');
+const area = document.getElementById('canvas-area');
+const svg = document.getElementById('lines');
+let zoom = 1, ox = 0, oy = 0;
+let nodes = {};   // id -> { el, x, y, parentId, data, childIds }
+let collapsed = {};
+let selected = new Set();  // selected card ids
+
+// ============================================================
+//  LAYOUT ENGINE — vertical tree, left-to-right per level
+// ============================================================
+const GAP_H = [0, 230, 210, 195];  // horizontal gap between siblings at each level
+const GAP_V = [0, 160, 145, 125];  // vertical gap parent→child at each level
+
+function layoutTree(node, parentId) {
+  nodes[node.id] = { x:0, y:0, parentId, data:node, childIds:[] };
+  if (parentId) nodes[parentId].childIds.push(node.id);
+  if (node.children) node.children.forEach(c => layoutTree(c, node.id));
+}
+
+function computeSubtreeWidth(id) {
+  const n = nodes[id];
+  const kids = n.childIds;
+  if (!kids.length) {
+    const w = [260, 210, 195, 180][n.data.level] || 180;
+    return w;
+  }
+  const g = GAP_H[n.data.level + 1] || 195;
+  let total = 0;
+  kids.forEach((kid, i) => {
+    total += computeSubtreeWidth(kid);
+    if (i < kids.length - 1) total += g - (([260,210,195,180][(nodes[kid].data.level)] || 180));
+  });
+  return Math.max(total, ([260,210,195,180][n.data.level] || 180));
+}
+
+function positionNode(id, cx, y) {
+  const n = nodes[id];
+  const w = [260, 210, 195, 180][n.data.level] || 180;
+  n.x = cx - w / 2;
+  n.y = y;
+
+  const kids = n.childIds;
+  if (!kids.length) return;
+
+  const gv = GAP_V[n.data.level + 1] || 125;
+  const gh = 18;
+  const childY = y + gv;
+
+  // compute each child subtree width
+  const widths = kids.map(k => computeSubtreeWidth(k));
+  const totalW = widths.reduce((a, b) => a + b, 0) + (kids.length - 1) * gh;
+  let startX = cx - totalW / 2;
+
+  kids.forEach((kid, i) => {
+    const kidCx = startX + widths[i] / 2;
+    positionNode(kid, kidCx, childY);
+    startX += widths[i] + gh;
+  });
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function render() {
+  // clear
+  world.querySelectorAll('.card').forEach(e => e.remove());
+  svg.innerHTML = '';
+  nodes = {};
+
+  // build tree
+  layoutTree(DATA, null);
+  positionNode('root', 3000, 50);
+
+  // create card elements
+  Object.keys(nodes).forEach(id => {
+    const n = nodes[id];
+    const d = n.data;
+    const el = document.createElement('div');
+    el.className = `card L${d.level} M${d.macro}`;
+    el.dataset.id = id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+
+    // header (draggable handle)
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.textContent = d.label;
+    head.setAttribute('contenteditable', 'true');
+    head.setAttribute('spellcheck', 'false');
+    el.appendChild(head);
+
+    // body
+    if (d.body) {
+      const body = document.createElement('div');
+      body.className = 'card-content';
+      body.textContent = d.body;
+      body.setAttribute('contenteditable', 'true');
+      body.setAttribute('spellcheck', 'false');
+      el.appendChild(body);
+    }
+
+    // meta/footer
+    if (d.meta) {
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = d.meta;
+      meta.setAttribute('contenteditable', 'true');
+      meta.setAttribute('spellcheck', 'false');
+      el.appendChild(meta);
+    }
+
+    // comment field (yellow pastel)
+    const comLabel = document.createElement('div');
+    comLabel.className = 'card-comment-label';
+    comLabel.textContent = 'Comentarios Equipe';
+    el.appendChild(comLabel);
+
+    const comment = document.createElement('div');
+    comment.className = 'card-comment';
+    comment.setAttribute('contenteditable', 'true');
+    comment.setAttribute('spellcheck', 'false');
+    comment.dataset.field = 'comment';
+    el.appendChild(comment);
+
+    world.appendChild(el);
+    n.el = el;
+
+    // Track edits on all editable fields
+    setupEditTracking(el, id);
+    // Right-click context menu
+    setupContextMenu(el, id);
+
+    // drag from header
+    setupCardDrag(el, id);
+  });
+
+  drawLines();
+}
+
+// ============================================================
+//  SELECTION HELPERS
+// ============================================================
+function selectCard(id, add) {
+  if (!add) {
+    selected.forEach(sid => { if (nodes[sid] && nodes[sid].el) nodes[sid].el.classList.remove('selected'); });
+    selected.clear();
+  }
+  selected.add(id);
+  nodes[id].el.classList.add('selected');
+  updateSelCount();
+}
+
+function deselectCard(id) {
+  selected.delete(id);
+  if (nodes[id] && nodes[id].el) nodes[id].el.classList.remove('selected');
+  updateSelCount();
+}
+
+function clearSelection() {
+  selected.forEach(sid => { if (nodes[sid] && nodes[sid].el) nodes[sid].el.classList.remove('selected'); });
+  selected.clear();
+  updateSelCount();
+}
+
+function toggleSelect(id, add) {
+  if (selected.has(id)) deselectCard(id);
+  else selectCard(id, add);
+}
+
+function updateSelCount() {
+  const el = document.getElementById('selCount');
+  el.textContent = selected.size > 0 ? selected.size + ' selecionado(s)' : '';
+}
+
+// ============================================================
+//  CARD DRAG — supports multi-select group drag
+// ============================================================
+function setupCardDrag(el, id) {
+  const head = el.querySelector('.card-head');
+  let dragging = false, sx, sy;
+  let dragStartPositions = {};  // snapshot of all selected positions
+
+  head.addEventListener('pointerdown', e => {
+    const txtSel = window.getSelection();
+    if (txtSel && txtSel.rangeCount > 0 && txtSel.toString().length > 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Shift+click = toggle selection
+    if (e.shiftKey) {
+      toggleSelect(id, true);
+      return;
+    }
+
+    // If this card is not selected, select only it
+    if (!selected.has(id)) {
+      clearSelection();
+      selectCard(id, false);
+    }
+
+    dragging = true;
+    el.classList.add('is-dragging');
+    sx = e.clientX; sy = e.clientY;
+
+    // Snapshot positions of all selected cards
+    dragStartPositions = {};
+    selected.forEach(sid => {
+      dragStartPositions[sid] = { x: nodes[sid].x, y: nodes[sid].y };
+    });
+
+    head.setPointerCapture(e.pointerId);
+  });
+
+  head.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const dx = (e.clientX - sx) / zoom;
+    const dy = (e.clientY - sy) / zoom;
+
+    // Move ALL selected cards
+    selected.forEach(sid => {
+      const start = dragStartPositions[sid];
+      if (!start) return;
+      const nx = start.x + dx;
+      const ny = start.y + dy;
+      nodes[sid].x = nx;
+      nodes[sid].y = ny;
+      nodes[sid].el.style.left = nx + 'px';
+      nodes[sid].el.style.top = ny + 'px';
+    });
+    drawLines();
+  });
+
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('is-dragging');
+    dragStartPositions = {};
+  };
+  head.addEventListener('pointerup', endDrag);
+  head.addEventListener('pointercancel', endDrag);
+
+  // Double-click on header to edit text
+  head.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    head.focus();
+    const range = document.createRange();
+    range.selectNodeContents(head);
+    const txtSel = window.getSelection();
+    txtSel.removeAllRanges();
+    txtSel.addRange(range);
+  });
+
+  // Click body/meta = deselect others, focus for edit
+  ['.card-content', '.card-meta'].forEach(cls => {
+    const part = el.querySelector(cls);
+    if (part) {
+      part.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        clearSelection();
+      });
+    }
+  });
+}
+
+// ============================================================
+//  EDIT TRACKING (revision log)
+// ============================================================
+const LOG_KEY = 'eap_wbs_vm_log';
+let editLog = [];
+
+function loadLog() {
+  try {
+    const raw = localStorage.getItem(LOG_KEY);
+    if (raw) editLog = JSON.parse(raw);
+  } catch(e) { editLog = []; }
+}
+
+function saveLog() {
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(editLog));
+  } catch(e) {}
+}
+
+function addLogEntry(cardId, cardLabel, field, oldVal, newVal) {
+  if (oldVal === newVal) return;
+  const entry = {
+    time: new Date().toISOString(),
+    cardId,
+    cardLabel: cardLabel.substring(0, 60),
+    field,
+    oldVal: oldVal.substring(0, 120),
+    newVal: newVal.substring(0, 120)
+  };
+  editLog.unshift(entry);
+  if (editLog.length > 500) editLog.length = 500;
+  saveLog();
+  renderLog();
+}
+
+function setupEditTracking(el, id) {
+  const fields = [
+    { sel: '.card-head', name: 'titulo' },
+    { sel: '.card-content', name: 'conteudo' },
+    { sel: '.card-meta', name: 'meta' },
+    { sel: '.card-comment', name: 'comentario' }
+  ];
+
+  fields.forEach(f => {
+    const part = el.querySelector(f.sel);
+    if (!part) return;
+    let before = '';
+    part.addEventListener('focus', () => { before = part.textContent; });
+    part.addEventListener('blur', () => {
+      const after = part.textContent;
+      if (before !== after) {
+        const head = el.querySelector('.card-head');
+        const label = head ? head.textContent : id;
+        addLogEntry(id, label, f.name, before, after);
+      }
+    });
+    // Also prevent card drag when editing comment
+    if (f.sel === '.card-comment') {
+      part.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        clearSelection();
+      });
+    }
+  });
+}
+
+function renderLog() {
+  const body = document.getElementById('log-panel-body');
+  const filter = (document.getElementById('log-filter').value || '').toLowerCase();
+  body.innerHTML = '';
+
+  const filtered = filter
+    ? editLog.filter(e => e.cardLabel.toLowerCase().includes(filter) || e.cardId.toLowerCase().includes(filter) || e.newVal.toLowerCase().includes(filter))
+    : editLog;
+
+  if (filtered.length === 0) {
+    body.innerHTML = '<div style="padding:24px 16px; text-align:center; color:#aaa; font-size:12px;">Nenhuma revisao registrada</div>';
+    return;
+  }
+
+  filtered.forEach(e => {
+    const d = new Date(e.time);
+    const ts = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML =
+      '<span class="log-time">' + ts + '</span> ' +
+      '<span class="log-card">' + escHtml(e.cardLabel) + '</span> ' +
+      '<span class="log-field">[' + e.field + ']</span><br>' +
+      (e.oldVal ? '<span class="log-old">' + escHtml(e.oldVal) + '</span><br>' : '') +
+      '<span class="log-new">' + escHtml(e.newVal) + '</span>';
+    body.appendChild(div);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleLogPanel() {
+  document.getElementById('log-panel').classList.toggle('open');
+  renderLog();
+}
+
+function clearLog() {
+  if (confirm('Limpar todo o historico de revisoes?')) {
+    editLog = [];
+    saveLog();
+    renderLog();
+    showToast('Historico limpo');
+  }
+}
+
+function exportLog() {
+  if (editLog.length === 0) { showToast('Nenhuma revisao para exportar'); return; }
+  let csv = 'Data/Hora,Card ID,Card,Campo,Valor Anterior,Novo Valor\n';
+  editLog.forEach(e => {
+    const row = [e.time, e.cardId, e.cardLabel, e.field, e.oldVal, e.newVal]
+      .map(v => '"' + (v||'').replace(/"/g,'""') + '"').join(',');
+    csv += row + '\n';
+  });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'historico_revisoes_eap.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado!');
+}
+
+// ============================================================
+//  LINES (bezier curves)
+// ============================================================
+function drawLines() {
+  svg.innerHTML = '';
+  Object.keys(nodes).forEach(id => {
+    const n = nodes[id];
+    if (!n.parentId) return;
+    const p = nodes[n.parentId];
+    if (!p || !p.el || !n.el) return;
+
+    const pw = p.el.offsetWidth, ph = p.el.offsetHeight;
+    const cw = n.el.offsetWidth;
+
+    const x1 = p.x + pw / 2;
+    const y1 = p.y + ph;
+    const x2 = n.x + cw / 2;
+    const y2 = n.y;
+    const my = (y1 + y2) / 2;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`);
+    svg.appendChild(path);
+  });
+}
+
+// ============================================================
+//  PAN + LASSO SELECTION (on background)
+// ============================================================
+let panning = false, psx, psy;
+let lassoing = false, lassoSx, lassoSy;
+const selectRect = document.getElementById('select-rect');
+
+area.addEventListener('pointerdown', e => {
+  if (e.target.closest('.card')) return;
+
+  // Shift+drag on background = lasso selection
+  if (e.shiftKey) {
+    lassoing = true;
+    const rect = area.getBoundingClientRect();
+    lassoSx = (e.clientX - rect.left - ox) / zoom;
+    lassoSy = (e.clientY - rect.top - oy) / zoom;
+    selectRect.style.left = lassoSx + 'px';
+    selectRect.style.top = lassoSy + 'px';
+    selectRect.style.width = '0px';
+    selectRect.style.height = '0px';
+    selectRect.style.display = 'block';
+    area.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  // Click on empty = clear selection
+  if (!e.shiftKey) clearSelection();
+
+  panning = true;
+  area.classList.add('grabbing');
+  psx = e.clientX - ox;
+  psy = e.clientY - oy;
+  area.setPointerCapture(e.pointerId);
+});
+
+area.addEventListener('pointermove', e => {
+  if (lassoing) {
+    const rect = area.getBoundingClientRect();
+    const cx = (e.clientX - rect.left - ox) / zoom;
+    const cy = (e.clientY - rect.top - oy) / zoom;
+    const x = Math.min(lassoSx, cx);
+    const y = Math.min(lassoSy, cy);
+    const w = Math.abs(cx - lassoSx);
+    const h = Math.abs(cy - lassoSy);
+    selectRect.style.left = x + 'px';
+    selectRect.style.top = y + 'px';
+    selectRect.style.width = w + 'px';
+    selectRect.style.height = h + 'px';
+    return;
+  }
+  if (!panning) return;
+  ox = e.clientX - psx;
+  oy = e.clientY - psy;
+  applyTransform();
+});
+
+area.addEventListener('pointerup', e => {
+  if (lassoing) {
+    lassoing = false;
+    // Determine which cards are inside the rectangle
+    const rx = parseFloat(selectRect.style.left);
+    const ry = parseFloat(selectRect.style.top);
+    const rw = parseFloat(selectRect.style.width);
+    const rh = parseFloat(selectRect.style.height);
+    selectRect.style.display = 'none';
+
+    if (rw > 5 && rh > 5) {
+      clearSelection();
+      Object.keys(nodes).forEach(nid => {
+        const n = nodes[nid];
+        const nw = n.el.offsetWidth;
+        const nh = n.el.offsetHeight;
+        const ncx = n.x + nw / 2;
+        const ncy = n.y + nh / 2;
+        if (ncx >= rx && ncx <= rx + rw && ncy >= ry && ncy <= ry + rh) {
+          selectCard(nid, true);
+        }
+      });
+    }
+    return;
+  }
+  panning = false;
+  area.classList.remove('grabbing');
+});
+area.addEventListener('pointercancel', () => { panning = false; lassoing = false; selectRect.style.display = 'none'; area.classList.remove('grabbing'); });
+
+// ============================================================
+//  ZOOM (scroll wheel)
+// ============================================================
+area.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const nz = Math.min(3, Math.max(0.08, zoom * factor));
+
+  const rect = area.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  ox = mx - (mx - ox) * (nz / zoom);
+  oy = my - (my - oy) * (nz / zoom);
+  zoom = nz;
+  applyTransform();
+}, { passive: false });
+
+function applyTransform() {
+  world.style.transform = `translate(${ox}px,${oy}px) scale(${zoom})`;
+  document.getElementById('zoomTxt').textContent = Math.round(zoom * 100) + '%';
+}
+
+// ============================================================
+//  TOOLBAR
+// ============================================================
+function doZoom(f) {
+  const rect = area.getBoundingClientRect();
+  const cx = rect.width / 2, cy = rect.height / 2;
+  const nz = Math.min(3, Math.max(0.08, zoom * f));
+  ox = cx - (cx - ox) * (nz / zoom);
+  oy = cy - (cy - oy) * (nz / zoom);
+  zoom = nz;
+  applyTransform();
+}
+
+function fitToScreen() {
+  const ids = Object.keys(nodes);
+  if (!ids.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  ids.forEach(id => {
+    const n = nodes[id];
+    const w = n.el ? n.el.offsetWidth : 200;
+    const h = n.el ? n.el.offsetHeight : 80;
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x + w > maxX) maxX = n.x + w;
+    if (n.y + h > maxY) maxY = n.y + h;
+  });
+
+  const pad = 60;
+  const cw = maxX - minX + pad * 2;
+  const ch = maxY - minY + pad * 2;
+  const aw = area.clientWidth;
+  const ah = area.clientHeight;
+  zoom = Math.min(aw / cw, ah / ch, 1.5);
+  ox = (aw - cw * zoom) / 2 - minX * zoom + pad * zoom;
+  oy = (ah - ch * zoom) / 2 - minY * zoom + pad * zoom;
+  applyTransform();
+}
+
+function rebuildLayout() {
+  render();
+  requestAnimationFrame(() => requestAnimationFrame(fitToScreen));
+}
+
+function toggleCollapse(hide) {
+  Object.keys(nodes).forEach(id => {
+    const el = nodes[id].el;
+    if (!el) return;
+    const body = el.querySelector('.card-content');
+    const meta = el.querySelector('.card-meta');
+    if (body) body.style.display = hide ? 'none' : '';
+    if (meta) meta.style.display = hide ? 'none' : '';
+  });
+  requestAnimationFrame(drawLines);
+}
+
+// ============================================================
+//  SAVE / LOAD / DOWNLOAD
+// ============================================================
+const STORAGE_KEY = 'eap_wbs_vm_state';
+
+function gatherState() {
+  const state = {};
+  Object.keys(nodes).forEach(id => {
+    const n = nodes[id];
+    const el = n.el;
+    const head = el.querySelector('.card-head');
+    const body = el.querySelector('.card-content');
+    const meta = el.querySelector('.card-meta');
+    const comment = el.querySelector('.card-comment');
+    state[id] = {
+      x: n.x, y: n.y,
+      label: head ? head.textContent : '',
+      body: body ? body.textContent : '',
+      meta: meta ? meta.textContent : '',
+      comment: comment ? comment.textContent : '',
+      color: head ? head.style.background : '',
+      borderColor: el.style.borderTopColor || ''
+    };
+  });
+  return { nodes: state, zoom, ox, oy };
+}
+
+function saveState() {
+  const state = gatherState();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    showToast('Salvo com sucesso!');
+  } catch(e) {
+    showToast('Erro ao salvar: ' + e.message);
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    if (!state.nodes) return false;
+
+    Object.keys(state.nodes).forEach(id => {
+      const s = state.nodes[id];
+      const n = nodes[id];
+      if (!n || !n.el) return;
+
+      n.x = s.x; n.y = s.y;
+      n.el.style.left = s.x + 'px';
+      n.el.style.top = s.y + 'px';
+
+      const head = n.el.querySelector('.card-head');
+      const body = n.el.querySelector('.card-content');
+      const meta = n.el.querySelector('.card-meta');
+      const comment = n.el.querySelector('.card-comment');
+      if (head && s.label) head.textContent = s.label;
+      if (body && s.body) body.textContent = s.body;
+      if (meta && s.meta !== undefined) meta.textContent = s.meta;
+      if (comment && s.comment) comment.textContent = s.comment;
+      if (head && s.color) head.style.background = s.color;
+      if (s.borderColor) n.el.style.borderTopColor = s.borderColor;
+    });
+
+    if (state.zoom) zoom = state.zoom;
+    if (state.ox !== undefined) ox = state.ox;
+    if (state.oy !== undefined) oy = state.oy;
+    applyTransform();
+    drawLines();
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function downloadHTML() {
+  // Update the DATA in the HTML source with current text edits and positions
+  const state = gatherState();
+  const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'EAP_WBS_VM_Arquitetos.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Download iniciado!');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ============================================================
+//  COPY / PASTE / DUPLICATE
+// ============================================================
+let clipboard = [];  // array of card data snapshots
+let pasteCounter = 0;
+
+function copySelected() {
+  if (selected.size === 0) { showToast('Selecione um card primeiro'); return; }
+  clipboard = [];
+  selected.forEach(id => {
+    const n = nodes[id];
+    if (!n) return;
+    const el = n.el;
+    clipboard.push({
+      x: n.x, y: n.y,
+      label: el.querySelector('.card-head')?.textContent || '',
+      body: el.querySelector('.card-content')?.textContent || '',
+      meta: el.querySelector('.card-meta')?.textContent || '',
+      comment: el.querySelector('.card-comment')?.textContent || '',
+      level: n.data.level,
+      macro: n.data.macro,
+      color: el.querySelector('.card-head')?.style.background || ''
+    });
+  });
+  showToast(clipboard.length + ' card(s) copiado(s)');
+}
+
+function pasteCard() {
+  if (clipboard.length === 0) { showToast('Nada copiado'); return; }
+  pasteCounter++;
+  const offset = 30 * pasteCounter;
+
+  clearSelection();
+  clipboard.forEach(snap => {
+    const newId = 'paste_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
+    const newData = {
+      id: newId,
+      label: snap.label + ' (copia)',
+      body: snap.body,
+      meta: snap.meta,
+      level: snap.level,
+      macro: snap.macro
+    };
+
+    nodes[newId] = { x: snap.x + offset, y: snap.y + offset, parentId: null, data: newData, childIds: [], el: null };
+
+    const el = document.createElement('div');
+    el.className = `card L${snap.level} M${snap.macro}`;
+    el.dataset.id = newId;
+    el.style.left = (snap.x + offset) + 'px';
+    el.style.top = (snap.y + offset) + 'px';
+
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.textContent = newData.label;
+    head.setAttribute('contenteditable', 'true');
+    head.setAttribute('spellcheck', 'false');
+    if (snap.color) head.style.background = snap.color;
+    el.appendChild(head);
+
+    if (snap.body) {
+      const body = document.createElement('div');
+      body.className = 'card-content';
+      body.textContent = snap.body;
+      body.setAttribute('contenteditable', 'true');
+      body.setAttribute('spellcheck', 'false');
+      el.appendChild(body);
+    }
+
+    if (snap.meta) {
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = snap.meta;
+      meta.setAttribute('contenteditable', 'true');
+      meta.setAttribute('spellcheck', 'false');
+      el.appendChild(meta);
+    }
+
+    const comLabel = document.createElement('div');
+    comLabel.className = 'card-comment-label';
+    comLabel.textContent = 'Comentarios Equipe';
+    el.appendChild(comLabel);
+
+    const comment = document.createElement('div');
+    comment.className = 'card-comment';
+    comment.textContent = snap.comment || '';
+    comment.setAttribute('contenteditable', 'true');
+    comment.setAttribute('spellcheck', 'false');
+    comment.dataset.field = 'comment';
+    el.appendChild(comment);
+
+    world.appendChild(el);
+    nodes[newId].el = el;
+    setupCardDrag(el, newId);
+    setupEditTracking(el, newId);
+    setupContextMenu(el, newId);
+
+    selectCard(newId, true);
+    el.classList.add('paste-flash');
+    setTimeout(() => el.classList.remove('paste-flash'), 500);
+  });
+
+  showToast(clipboard.length + ' card(s) colado(s)');
+  drawLines();
+}
+
+function duplicateInPlace() {
+  if (selected.size === 0) return;
+  copySelected();
+  pasteCard();
+  hideContextMenu();
+}
+
+function deleteSelected() {
+  if (selected.size === 0) { showToast('Selecione um card primeiro'); return; }
+  if (!confirm('Excluir ' + selected.size + ' card(s)?')) return;
+  selected.forEach(id => {
+    const n = nodes[id];
+    if (!n) return;
+    if (n.el) n.el.remove();
+    // Remove from parent's childIds
+    if (n.parentId && nodes[n.parentId]) {
+      nodes[n.parentId].childIds = nodes[n.parentId].childIds.filter(c => c !== id);
+    }
+    delete nodes[id];
+  });
+  selected.clear();
+  updateSelCount();
+  drawLines();
+  showToast('Card(s) excluido(s)');
+}
+
+// ============================================================
+//  CONTEXT MENU (right-click)
+// ============================================================
+let ctxTargetId = null;
+const ctxMenu = document.getElementById('ctx-menu');
+
+function setupContextMenu(el, id) {
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selected.has(id)) {
+      clearSelection();
+      selectCard(id, false);
+    }
+    ctxTargetId = id;
+    ctxMenu.style.left = e.clientX + 'px';
+    ctxMenu.style.top = e.clientY + 'px';
+    ctxMenu.style.display = 'block';
+  });
+}
+
+function hideContextMenu() {
+  ctxMenu.style.display = 'none';
+  ctxTargetId = null;
+}
+
+document.addEventListener('click', e => {
+  if (!ctxMenu.contains(e.target)) hideContextMenu();
+  if (!document.getElementById('color-picker').contains(e.target) && !e.target.closest('.ctx-item')) {
+    document.getElementById('color-picker').style.display = 'none';
+  }
+});
+
+// ============================================================
+//  COLOR PICKER
+// ============================================================
+const PALETTE = [
+  '#c62828','#ad1457','#6a1b9a','#4527a0','#283593','#1565c0',
+  '#00838f','#00695c','#2e7d32','#558b2f','#9e9d24','#f9a825',
+  '#ef6c00','#d84315','#4e342e','#37474f','#455a64','#263238',
+  '#e53935','#d81b60','#8e24aa','#5c6bc0','#1e88e5','#00acc1',
+  '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#ffb300',
+  '#fb8c00','#f4511e','#6d4c41','#757575','#546e7a','#212121'
+];
+
+function initColorPicker() {
+  const grid = document.getElementById('cp-grid');
+  grid.innerHTML = '';
+  PALETTE.forEach(color => {
+    const sw = document.createElement('div');
+    sw.className = 'cp-swatch';
+    sw.style.background = color;
+    sw.dataset.color = color;
+    sw.addEventListener('click', () => applyColorToSelected(color));
+    grid.appendChild(sw);
+  });
+}
+
+function openColorPicker() {
+  hideContextMenu();
+  if (selected.size === 0) { showToast('Selecione um card primeiro'); return; }
+  const cp = document.getElementById('color-picker');
+
+  // Position near center of screen
+  const firstId = [...selected][0];
+  const n = nodes[firstId];
+  if (n && n.el) {
+    const rect = n.el.getBoundingClientRect();
+    cp.style.left = Math.min(rect.right + 10, window.innerWidth - 240) + 'px';
+    cp.style.top = Math.max(rect.top, 50) + 'px';
+  } else {
+    cp.style.left = '50%';
+    cp.style.top = '50%';
+  }
+
+  // Mark current color
+  const head = n?.el?.querySelector('.card-head');
+  const currentBg = head ? getComputedStyle(head).backgroundColor : '';
+  cp.querySelectorAll('.cp-swatch').forEach(sw => sw.classList.remove('active'));
+
+  cp.style.display = 'block';
+}
+
+function applyColorToSelected(color) {
+  selected.forEach(id => {
+    const n = nodes[id];
+    if (!n || !n.el) return;
+    const head = n.el.querySelector('.card-head');
+    if (head) head.style.background = color;
+    // Update border-top too
+    n.el.style.borderTopColor = color;
+  });
+  // Highlight active swatch
+  document.querySelectorAll('.cp-swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.dataset.color === color);
+  });
+  showToast('Cor aplicada');
+}
+
+function applyCustomColor(color) {
+  applyColorToSelected(color);
+}
+
+// ============================================================
+//  KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  // Cmd+S = save
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveState();
+  }
+  // Escape = clear selection / close panels
+  if (e.key === 'Escape') {
+    clearSelection();
+    hideContextMenu();
+    document.getElementById('color-picker').style.display = 'none';
+    document.getElementById('log-panel').classList.remove('open');
+  }
+  // Cmd+A = select all (when not editing text)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !document.activeElement.isContentEditable) {
+    e.preventDefault();
+    Object.keys(nodes).forEach(id => selectCard(id, true));
+  }
+  // Cmd+C = copy
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !document.activeElement.isContentEditable) {
+    e.preventDefault();
+    copySelected();
+  }
+  // Cmd+V = paste
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !document.activeElement.isContentEditable) {
+    e.preventDefault();
+    pasteCard();
+  }
+  // Cmd+D = duplicate
+  if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !document.activeElement.isContentEditable) {
+    e.preventDefault();
+    duplicateInPlace();
+  }
+  // Delete / Backspace = delete selected (when not editing)
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !document.activeElement.isContentEditable && selected.size > 0) {
+    e.preventDefault();
+    deleteSelected();
+  }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+// ============================================================
+//  VIEW SWITCHING (Hierarquia / Fluxo)
+// ============================================================
+let currentView = 'hier';
+const flowArea = document.getElementById('flow-area');
+const flowWorld = document.getElementById('flow-world');
+let flowZoom = 1, flowOx = 60, flowOy = 60;
+let flowPanning = false, flowPsx, flowPsy;
+
+function switchView(view) {
+  // Sync data from current view before switching
+  try {
+    if (currentView === 'hier') syncFromHierarchy();
+    else syncFromFlow();
+  } catch(e) { console.warn('sync error:', e); }
+
+  currentView = view;
+  document.getElementById('tab-hier').classList.toggle('active', view === 'hier');
+  document.getElementById('tab-flow').classList.toggle('active', view === 'flow');
+
+  // Explicitly set display
+  var ca = document.getElementById('canvas-area');
+  var fa = document.getElementById('flow-area');
+  if (view === 'hier') {
+    ca.style.display = 'block';
+    fa.classList.remove('active');
+  } else {
+    ca.style.display = 'none';
+    fa.classList.add('active');
+    try {
+      renderFlow();
+      requestAnimationFrame(() => fitToScreen());
+    } catch(e) { console.error('renderFlow error:', e); }
+  }
+}
+
+// Sync text edits from hierarchy cards into DATA
+function syncFromHierarchy() {
+  function syncNode(dataNode) {
+    // Try nodes object first, then query DOM directly
+    var el = null;
+    if (nodes[dataNode.id] && nodes[dataNode.id].el) {
+      el = nodes[dataNode.id].el;
+    } else {
+      el = document.querySelector('.card[data-id="' + dataNode.id + '"]');
+    }
+    if (el) {
+      const h = el.querySelector('.card-head');
+      const b = el.querySelector('.card-content');
+      const m = el.querySelector('.card-meta');
+      const c = el.querySelector('.card-comment');
+      if (h) dataNode.label = h.textContent;
+      if (b) dataNode.body = b.textContent;
+      if (m) dataNode.meta = m.textContent;
+      if (c) dataNode._comment = c.textContent;
+      if (h && h.style.background) dataNode._color = h.style.background;
+    }
+    if (dataNode.children) dataNode.children.forEach(syncNode);
+  }
+  syncNode(DATA);
+}
+
+// Sync text edits from flow cards into DATA
+function syncFromFlow() {
+  flowWorld.querySelectorAll('.flow-card').forEach(fc => {
+    const id = fc.dataset.id;
+    const dn = findDataNode(DATA, id);
+    if (!dn) return;
+    const h = fc.querySelector('.card-head');
+    const b = fc.querySelector('.card-content');
+    const m = fc.querySelector('.card-meta');
+    const c = fc.querySelector('.card-comment');
+    if (h) dn.label = h.textContent;
+    if (b) dn.body = b.textContent;
+    if (m) dn.meta = m.textContent;
+    if (c) dn._comment = c.textContent;
+    if (h && h.style.background) dn._color = h.style.background;
+  });
+}
+
+function findDataNode(node, id) {
+  if (node.id === id) return node;
+  if (node.children) {
+    for (const ch of node.children) {
+      const found = findDataNode(ch, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+//  FLOW RENDERING (Swimlanes)
+// ============================================================
+const LANE_COLORS = {
+  1: '#c62828', 2: '#6a1b9a', 3: '#283593',
+  4: '#00695c', 5: '#e65100', 6: '#37474f'
+};
+const LANE_NAMES = {
+  1: '1. Marketing', 2: '2. Proposta', 3: '3. Contrato',
+  4: '4. Operacao', 5: '5. Backoffice', 6: '6. Gestao Docs'
+};
+
+function renderFlow() {
+  flowWorld.innerHTML = '';
+  const macros = DATA.children;
+  const CARD_W = 170;
+  const SUB_W = 150;
+  const ARROW_W = 36;
+  const SUB_ARROW_W = 26;
+  const MAIN_ROW_H = 240;
+  const SUB_ROW_H = 200;
+  const LANE_PAD = 20;
+  const HEADER_W = 150;
+  let yPos = 20;
+
+  macros.forEach((macro) => {
+    const mNum = macro.macro;
+    const color = LANE_COLORS[mNum] || '#555';
+    const etapas = macro.children || [];
+
+    // Calculate max sub-children width for this lane
+    let maxSubWidth = 0;
+    etapas.forEach(et => {
+      if (et.children && et.children.length > 0) {
+        const sw = et.children.length * (SUB_W + SUB_ARROW_W) - SUB_ARROW_W;
+        if (sw > maxSubWidth) maxSubWidth = sw;
+      }
+    });
+    const hasSubRows = maxSubWidth > 0;
+
+    // Each etapa takes the max of (CARD_W) or (its sub-row width)
+    function etapaWidth(et) {
+      if (!et.children || et.children.length === 0) return CARD_W;
+      const sw = et.children.length * (SUB_W + SUB_ARROW_W) - SUB_ARROW_W;
+      return Math.max(CARD_W, sw);
+    }
+
+    // Total lane width
+    let totalLaneW = HEADER_W + LANE_PAD;
+    etapas.forEach((et, i) => {
+      if (i > 0) totalLaneW += ARROW_W;
+      totalLaneW += etapaWidth(et);
+    });
+    totalLaneW += LANE_PAD;
+
+    const laneH = MAIN_ROW_H + (hasSubRows ? SUB_ROW_H : 0);
+
+    // Lane background
+    const bg = document.createElement('div');
+    bg.className = 'lane-bg';
+    bg.style.cssText = `left:10px;top:${yPos-6}px;width:${totalLaneW}px;height:${laneH+12}px;background:${color};border-radius:10px;`;
+    flowWorld.appendChild(bg);
+
+    // Swim header
+    const header = document.createElement('div');
+    header.className = 'swim-header';
+    header.style.cssText = `position:absolute;left:20px;top:${yPos}px;height:${laneH}px;width:${HEADER_W}px;background:${color};`;
+    header.textContent = LANE_NAMES[mNum] || macro.label;
+    flowWorld.appendChild(header);
+
+    // Place etapas
+    let xPos = 20 + HEADER_W + LANE_PAD;
+    etapas.forEach((etapa, ei) => {
+      if (ei > 0) {
+        const arrow = document.createElement('div');
+        arrow.className = 'flow-arrow';
+        arrow.style.cssText = `position:absolute;left:${xPos}px;top:${yPos}px;height:${MAIN_ROW_H}px;`;
+        arrow.innerHTML = '&#10132;';
+        flowWorld.appendChild(arrow);
+        xPos += ARROW_W;
+      }
+
+      const ew = etapaWidth(etapa);
+
+      // Main card centered in its slot
+      const card = createFlowCard(etapa, color);
+      const cardLeft = xPos + (ew - CARD_W) / 2;
+      card.style.cssText += `position:absolute;left:${cardLeft}px;top:${yPos + 10}px;width:${CARD_W}px;`;
+      flowWorld.appendChild(card);
+
+      // Sub-etapas below
+      if (etapa.children && etapa.children.length > 0) {
+        let subX = xPos;
+        etapa.children.forEach((sub, si) => {
+          if (si > 0) {
+            const sa = document.createElement('div');
+            sa.className = 'flow-sub-arrow';
+            sa.style.cssText = `position:absolute;left:${subX}px;top:${yPos + MAIN_ROW_H}px;`;
+            sa.innerHTML = '&#10132;';
+            flowWorld.appendChild(sa);
+            subX += SUB_ARROW_W;
+          }
+          const sc = createFlowCard(sub, color, true);
+          sc.style.cssText += `position:absolute;left:${subX}px;top:${yPos + MAIN_ROW_H + 4}px;width:${SUB_W}px;`;
+          flowWorld.appendChild(sc);
+          subX += SUB_W;
+        });
+      }
+
+      xPos += ew;
+    });
+
+    yPos += laneH + 24;
+  });
+
+  applyFlowTransform();
+}
+
+function createFlowCard(dataNode, laneColor, isSub) {
+  const el = document.createElement('div');
+  el.className = 'flow-card' + (isSub ? ' sub-card' : '');
+  el.dataset.id = dataNode.id;
+
+  const head = document.createElement('div');
+  head.className = 'card-head';
+  head.textContent = dataNode.label;
+  head.style.background = dataNode._color || laneColor;
+  head.setAttribute('contenteditable', 'true');
+  head.setAttribute('spellcheck', 'false');
+  el.appendChild(head);
+
+  if (dataNode.body) {
+    const body = document.createElement('div');
+    body.className = 'card-content';
+    body.textContent = dataNode.body;
+    body.setAttribute('contenteditable', 'true');
+    body.setAttribute('spellcheck', 'false');
+    el.appendChild(body);
+  }
+
+  if (dataNode.meta) {
+    const meta = document.createElement('div');
+    meta.className = 'card-meta';
+    meta.textContent = dataNode.meta;
+    meta.setAttribute('contenteditable', 'true');
+    meta.setAttribute('spellcheck', 'false');
+    el.appendChild(meta);
+  }
+
+  const comLabel = document.createElement('div');
+  comLabel.className = 'card-comment-label';
+  comLabel.textContent = 'Comentarios Equipe';
+  el.appendChild(comLabel);
+
+  const comment = document.createElement('div');
+  comment.className = 'card-comment';
+  comment.textContent = dataNode._comment || '';
+  comment.setAttribute('contenteditable', 'true');
+  comment.setAttribute('spellcheck', 'false');
+  el.appendChild(comment);
+
+  // Edit tracking
+  const fields = [
+    { sel: '.card-head', name: 'titulo' },
+    { sel: '.card-content', name: 'conteudo' },
+    { sel: '.card-meta', name: 'meta' },
+    { sel: '.card-comment', name: 'comentario' }
+  ];
+  fields.forEach(f => {
+    const part = el.querySelector(f.sel);
+    if (!part) return;
+    let before = '';
+    part.addEventListener('focus', () => { before = part.textContent; });
+    part.addEventListener('blur', () => {
+      const after = part.textContent;
+      if (before !== after) addLogEntry(dataNode.id, dataNode.label, f.name, before, after);
+    });
+  });
+
+  // Stop propagation on editable areas so pan doesn't start
+  ['.card-content', '.card-meta', '.card-comment'].forEach(cls => {
+    const p = el.querySelector(cls);
+    if (p) p.addEventListener('pointerdown', e => e.stopPropagation());
+  });
+
+  // --- DRAG (by header) ---
+  setupFlowDrag(el, head);
+
+  // --- Double-click header to edit ---
+  head.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    head.focus();
+    const range = document.createRange();
+    range.selectNodeContents(head);
+    const s = window.getSelection();
+    s.removeAllRanges(); s.addRange(range);
+  });
+
+  // --- SELECTION (shift+click / click) ---
+  head.addEventListener('pointerdown', e => {
+    if (e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      toggleFlowSelect(el);
+      return;
+    }
+  });
+
+  // --- CONTEXT MENU (right-click) ---
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!el.classList.contains('flow-selected')) {
+      clearFlowSelection();
+      flowSelectCard(el);
+    }
+    ctxFlowTarget = el;
+    ctxMenu.style.left = e.clientX + 'px';
+    ctxMenu.style.top = e.clientY + 'px';
+    ctxMenu.style.display = 'block';
+  });
+
+  return el;
+}
+
+// ============================================================
+//  FLOW DRAG
+// ============================================================
+function setupFlowDrag(el, handle) {
+  let dragging = false, sx, sy, ox, oy;
+
+  handle.addEventListener('pointerdown', e => {
+    const sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+    if (e.shiftKey) return;
+
+    e.preventDefault(); e.stopPropagation();
+
+    // If not selected, select only this card
+    if (!el.classList.contains('flow-selected')) {
+      clearFlowSelection();
+      flowSelectCard(el);
+    }
+
+    // Snapshot positions of all selected for group drag
+    flowWorld.querySelectorAll('.flow-selected').forEach(fc => {
+      fc._dragOx = parseFloat(fc.style.left)||0;
+      fc._dragOy = parseFloat(fc.style.top)||0;
+    });
+
+    dragging = true;
+    el.classList.add('is-dragging');
+    sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(el.style.left) || 0;
+    oy = parseFloat(el.style.top) || 0;
+    handle.setPointerCapture(e.pointerId);
+  });
+
+  handle.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const dx = (e.clientX - sx) / flowZoom;
+    const dy = (e.clientY - sy) / flowZoom;
+
+    if (el.classList.contains('flow-selected')) {
+      const allSel = flowWorld.querySelectorAll('.flow-selected');
+      allSel.forEach(fc => {
+        if (fc._dragOx === undefined) { fc._dragOx = parseFloat(fc.style.left)||0; fc._dragOy = parseFloat(fc.style.top)||0; }
+        fc.style.left = (fc._dragOx + dx) + 'px';
+        fc.style.top = (fc._dragOy + dy) + 'px';
+      });
+    } else {
+      el.style.left = (ox + dx) + 'px';
+      el.style.top = (oy + dy) + 'px';
+    }
+  });
+
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('is-dragging');
+    // Clear drag origins
+    flowWorld.querySelectorAll('.flow-selected').forEach(fc => { delete fc._dragOx; delete fc._dragOy; });
+  };
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+}
+
+// ============================================================
+//  FLOW SELECTION
+// ============================================================
+let ctxFlowTarget = null;
+
+function flowSelectCard(el) {
+  el.classList.add('flow-selected');
+  el.style.outline = '2px solid #1a73e8';
+  el.style.outlineOffset = '2px';
+  updateFlowSelCount();
+}
+
+function flowDeselectCard(el) {
+  el.classList.remove('flow-selected');
+  el.style.outline = '';
+  el.style.outlineOffset = '';
+  updateFlowSelCount();
+}
+
+function clearFlowSelection() {
+  flowWorld.querySelectorAll('.flow-selected').forEach(fc => flowDeselectCard(fc));
+}
+
+function toggleFlowSelect(el) {
+  if (el.classList.contains('flow-selected')) flowDeselectCard(el);
+  else flowSelectCard(el);
+}
+
+function updateFlowSelCount() {
+  const cnt = flowWorld.querySelectorAll('.flow-selected').length;
+  document.getElementById('selCount').textContent = cnt > 0 ? cnt + ' selecionado(s)' : '';
+}
+
+// Flow: click on background = clear selection
+flowArea.addEventListener('pointerdown', e => {
+  if (!e.target.closest('.flow-card') && !e.shiftKey) {
+    clearFlowSelection();
+  }
+});
+
+// Flow: color picker works on flow cards too
+const origApplyColor = applyColorToSelected;
+applyColorToSelected = function(color) {
+  if (currentView === 'flow') {
+    flowWorld.querySelectorAll('.flow-selected').forEach(fc => {
+      const h = fc.querySelector('.card-head');
+      if (h) h.style.background = color;
+    });
+    showToast('Cor aplicada');
+    document.querySelectorAll('.cp-swatch').forEach(sw => {
+      sw.classList.toggle('active', sw.dataset.color === color);
+    });
+  } else {
+    origApplyColor(color);
+  }
+};
+
+// Flow: copy selected
+const origCopySelected = copySelected;
+copySelected = function() {
+  if (currentView === 'flow') {
+    const sel = flowWorld.querySelectorAll('.flow-selected');
+    if (sel.length === 0) { showToast('Selecione um card primeiro'); return; }
+    clipboard = [];
+    sel.forEach(fc => {
+      clipboard.push({
+        x: parseFloat(fc.style.left)||0,
+        y: parseFloat(fc.style.top)||0,
+        label: fc.querySelector('.card-head')?.textContent || '',
+        body: fc.querySelector('.card-content')?.textContent || '',
+        meta: fc.querySelector('.card-meta')?.textContent || '',
+        comment: fc.querySelector('.card-comment')?.textContent || '',
+        level: 2, macro: 4,
+        color: fc.querySelector('.card-head')?.style.background || ''
+      });
+    });
+    showToast(clipboard.length + ' card(s) copiado(s)');
+  } else {
+    origCopySelected();
+  }
+};
+
+// Flow: paste
+const origPasteCard = pasteCard;
+pasteCard = function() {
+  if (currentView === 'flow') {
+    if (clipboard.length === 0) { showToast('Nada copiado'); return; }
+    pasteCounter++;
+    const off = 30 * pasteCounter;
+    clearFlowSelection();
+    clipboard.forEach(snap => {
+      const dn = { id: 'fpaste_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
+        label: snap.label + ' (copia)', body: snap.body, meta: snap.meta, _comment: snap.comment, _color: snap.color };
+      const fc = createFlowCard(dn, snap.color || '#555');
+      fc.style.cssText += `position:absolute;left:${snap.x+off}px;top:${snap.y+off}px;width:170px;`;
+      flowWorld.appendChild(fc);
+      flowSelectCard(fc);
+      fc.classList.add('paste-flash');
+      setTimeout(() => fc.classList.remove('paste-flash'), 500);
+    });
+    showToast(clipboard.length + ' card(s) colado(s)');
+  } else {
+    origPasteCard();
+  }
+};
+
+// Flow: delete selected
+const origDeleteSelected = deleteSelected;
+deleteSelected = function() {
+  if (currentView === 'flow') {
+    const sel = flowWorld.querySelectorAll('.flow-selected');
+    if (sel.length === 0) { showToast('Selecione um card primeiro'); return; }
+    if (!confirm('Excluir ' + sel.length + ' card(s)?')) return;
+    sel.forEach(fc => fc.remove());
+    showToast('Card(s) excluido(s)');
+  } else {
+    origDeleteSelected();
+  }
+};
+
+// Flow: open color picker positioned near flow card
+const origOpenColorPicker = openColorPicker;
+openColorPicker = function() {
+  hideContextMenu();
+  if (currentView === 'flow') {
+    const sel = flowWorld.querySelectorAll('.flow-selected');
+    if (sel.length === 0) { showToast('Selecione um card primeiro'); return; }
+    const cp = document.getElementById('color-picker');
+    const rect = sel[0].getBoundingClientRect();
+    cp.style.left = Math.min(rect.right + 10, window.innerWidth - 240) + 'px';
+    cp.style.top = Math.max(rect.top, 50) + 'px';
+    cp.style.display = 'block';
+  } else {
+    origOpenColorPicker();
+  }
+};
+
+// ============================================================
+//  FLOW PAN & ZOOM
+// ============================================================
+function applyFlowTransform() {
+  flowWorld.style.transform = `translate(${flowOx}px,${flowOy}px) scale(${flowZoom})`;
+}
+
+flowArea.addEventListener('pointerdown', e => {
+  if (e.target.closest('.flow-card')) return;
+  flowPanning = true;
+  flowArea.classList.add('grabbing');
+  flowPsx = e.clientX - flowOx;
+  flowPsy = e.clientY - flowOy;
+  flowArea.setPointerCapture(e.pointerId);
+});
+
+flowArea.addEventListener('pointermove', e => {
+  if (!flowPanning) return;
+  flowOx = e.clientX - flowPsx;
+  flowOy = e.clientY - flowPsy;
+  applyFlowTransform();
+});
+
+flowArea.addEventListener('pointerup', () => { flowPanning = false; flowArea.classList.remove('grabbing'); });
+flowArea.addEventListener('pointercancel', () => { flowPanning = false; flowArea.classList.remove('grabbing'); });
+
+flowArea.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const nz = Math.min(3, Math.max(0.08, flowZoom * factor));
+  const rect = flowArea.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  flowOx = mx - (mx - flowOx) * (nz / flowZoom);
+  flowOy = my - (my - flowOy) * (nz / flowZoom);
+  flowZoom = nz;
+  applyFlowTransform();
+  document.getElementById('zoomTxt').textContent = Math.round(flowZoom * 100) + '%';
+}, { passive: false });
+
+// Override zoom display to show current view's zoom
+const origApplyTransform = applyTransform;
+applyTransform = function() {
+  origApplyTransform();
+  if (currentView === 'hier') {
+    document.getElementById('zoomTxt').textContent = Math.round(zoom * 100) + '%';
+  }
+};
+
+// Override doZoom/fitToScreen for flow view
+const origDoZoom = doZoom;
+doZoom = function(f) {
+  if (currentView === 'flow') {
+    const rect = flowArea.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const nz = Math.min(3, Math.max(0.08, flowZoom * f));
+    flowOx = cx - (cx - flowOx) * (nz / flowZoom);
+    flowOy = cy - (cy - flowOy) * (nz / flowZoom);
+    flowZoom = nz;
+    applyFlowTransform();
+    document.getElementById('zoomTxt').textContent = Math.round(flowZoom * 100) + '%';
+  } else {
+    origDoZoom(f);
+  }
+};
+
+const origFit = fitToScreen;
+fitToScreen = function() {
+  if (currentView === 'flow') {
+    // Calculate bounds from all flow children
+    const els = flowWorld.querySelectorAll('.flow-card, .swim-header, .lane-bg');
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    els.forEach(el => {
+      const l = parseFloat(el.style.left)||0, t = parseFloat(el.style.top)||0;
+      const w = el.offsetWidth||150, h = el.offsetHeight||80;
+      if (l < minX) minX = l;
+      if (t < minY) minY = t;
+      if (l+w > maxX) maxX = l+w;
+      if (t+h > maxY) maxY = t+h;
+    });
+    if (minX === Infinity) { minX=0; minY=0; maxX=1000; maxY=600; }
+    const pad=40, cw=maxX-minX+pad*2, ch=maxY-minY+pad*2;
+    const aw=flowArea.clientWidth, ah=flowArea.clientHeight;
+    flowZoom = Math.min(aw/cw, ah/ch, 1.2);
+    flowOx = (aw - cw*flowZoom)/2 - minX*flowZoom + pad*flowZoom;
+    flowOy = (ah - ch*flowZoom)/2 - minY*flowZoom + pad*flowZoom;
+    applyFlowTransform();
+    document.getElementById('zoomTxt').textContent = Math.round(flowZoom * 100) + '%';
+  } else {
+    origFit();
+  }
+};
+
+// ============================================================
+//  INIT
+// ============================================================
+loadLog();
+initColorPicker();
+render();
+
+// Tutorial toggle
+function toggleTutorial() {
+  document.getElementById('tutorial').classList.toggle('minimized');
+}
+// Start with tutorial open, auto-minimize after 15s
+setTimeout(() => {
+  const tut = document.getElementById('tutorial');
+  if (!tut.classList.contains('minimized')) tut.classList.add('minimized');
+}, 15000);
+// Try to load saved state, otherwise fit to screen
+if (!loadState()) {
+  requestAnimationFrame(() => requestAnimationFrame(fitToScreen));
+} else {
+  requestAnimationFrame(drawLines);
+}
+window.addEventListener('resize', () => { drawLines(); });
+</script>
+
+
+</body></html>
