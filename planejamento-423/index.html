@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planejamento CT-423 | Daniela e Max | VM+Arquitetos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;
+--text:#e4e4e7;--muted:#8b8d97;--accent:#10b981;
+--phase1:#3b82f6;--phase2:#8b5cf6;--phase3:#f59e0b;
+--phase4:#ef4444;--phase5:#06b6d4;--phase6:#ec4899;
+--phase7:#10b981;--phase8:#f97316;--phase9:#6366f1;
+--milestone:#fbbf24;--client:#ff6b6b;--critical:#ef4444;
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+
+/* Header */
+.header{background:linear-gradient(135deg,#1a1d27 0%,#2a2d3a 100%);border:1px solid var(--border);border-radius:16px;padding:30px;margin-bottom:24px;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--phase1),var(--phase2),var(--phase3),var(--phase7))}
+.header h1{font-size:24px;font-weight:700;margin-bottom:4px}
+.header h1 span{color:var(--accent)}
+.header .subtitle{color:var(--muted);font-size:14px}
+.header .contract-info{display:flex;gap:24px;margin-top:16px;flex-wrap:wrap}
+.header .info-item{background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 16px}
+.header .info-item label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block}
+.header .info-item span{font-size:15px;font-weight:600;color:var(--text)}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.tab{padding:10px 20px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
+.tab:hover{border-color:var(--accent);color:var(--text)}
+.tab.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Summary Cards */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.summary-card .number{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--phase1));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.summary-card .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+/* Gantt */
+.gantt-container{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+.gantt-header{display:grid;grid-template-columns:40px 280px 1fr;align-items:center;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600}
+.gantt-months{display:flex;width:100%}
+.gantt-month{flex:1;text-align:center;padding:4px;font-size:11px;color:var(--muted);border-left:1px solid var(--border)}
+
+.gantt-row{display:grid;grid-template-columns:40px 280px 1fr;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);min-height:32px;font-size:13px;transition:background .15s}
+.gantt-row:hover{background:rgba(255,255,255,0.03)}
+.gantt-row.section{background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border);padding:8px 0;margin-top:4px}
+.gantt-row.section .gantt-name{font-weight:700;font-size:13px;color:var(--accent)}
+.gantt-row .gantt-id{font-size:11px;color:var(--muted);text-align:center;font-weight:600}
+.gantt-row .gantt-name{font-size:12px;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-row .gantt-name .pred{font-size:10px;color:var(--muted);margin-left:4px}
+.gantt-row .gantt-name .dates{font-size:10px;color:var(--muted);display:block}
+
+.gantt-bar-area{position:relative;height:24px;width:100%}
+.gantt-bar{position:absolute;height:20px;border-radius:4px;top:2px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;min-width:4px;transition:all .2s;cursor:default}
+.gantt-bar:hover{opacity:0.85;transform:scaleY(1.15)}
+.gantt-bar.milestone{width:16px!important;height:16px;transform:rotate(45deg);border-radius:2px;top:4px}
+.gantt-bar.milestone:hover{transform:rotate(45deg) scale(1.2)}
+.gantt-bar.client{background:repeating-linear-gradient(45deg,var(--client),var(--client) 4px,rgba(255,107,107,0.7) 4px,rgba(255,107,107,0.7) 8px);border:1px dashed rgba(255,255,255,0.3)}
+.gantt-bar.critical{box-shadow:0 0 0 1px rgba(239,68,68,0.3)}
+.gantt-bar .bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px;font-size:9px}
+
+/* Timeline grid */
+.timeline-grid{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;pointer-events:none}
+.timeline-week{flex:1;border-left:1px solid rgba(255,255,255,0.03)}
+.timeline-week.month-start{border-left:1px solid rgba(255,255,255,0.08)}
+.today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:5;opacity:0.6}
+.today-line::before{content:'HOJE';position:absolute;top:-18px;left:-14px;font-size:9px;background:var(--accent);color:#000;padding:1px 4px;border-radius:3px;font-weight:700}
+
+/* Table view */
+.table-container{overflow-x:auto}
+table.planning{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:12px;overflow:hidden}
+table.planning th{background:rgba(255,255,255,0.05);padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:2}
+table.planning td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle}
+table.planning tr:hover{background:rgba(255,255,255,0.02)}
+table.planning tr.section-row{background:rgba(16,185,129,0.08)}
+table.planning tr.section-row td{font-weight:700;color:var(--accent);padding:12px;border-bottom:1px solid var(--border)}
+table.planning tr.milestone-row td{color:var(--milestone)}
+table.planning tr.client-row{background:rgba(255,107,107,0.05)}
+table.planning tr.client-row td{color:var(--client)}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.badge-critical{background:rgba(239,68,68,0.15);color:var(--critical)}
+.badge-folga{background:rgba(16,185,129,0.15);color:var(--accent)}
+.badge-livre{background:rgba(99,102,241,0.15);color:#818cf8}
+.phase-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+/* Milestones timeline */
+.milestones{display:grid;gap:12px;margin-bottom:24px}
+.milestone-card{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .2s}
+.milestone-card:hover{border-color:var(--accent);transform:translateX(4px)}
+.milestone-card .m-date{min-width:100px;text-align:center}
+.milestone-card .m-date .day{font-size:28px;font-weight:800;line-height:1}
+.milestone-card .m-date .month{font-size:12px;color:var(--muted);text-transform:uppercase}
+.milestone-card .m-date .dow{font-size:11px;color:var(--muted)}
+.milestone-card .m-line{width:3px;height:40px;border-radius:2px}
+.milestone-card .m-info h3{font-size:14px;font-weight:600}
+.milestone-card .m-info p{font-size:12px;color:var(--muted)}
+.milestone-card.past{opacity:0.5}
+.milestone-card.current{border-color:var(--accent);box-shadow:0 0 20px rgba(16,185,129,0.1)}
+.milestone-card.current .m-date .day{color:var(--accent)}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:24px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.legend-color{width:14px;height:14px;border-radius:3px}
+
+/* Critical path */
+.critical-path{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px}
+.critical-path h3{font-size:14px;margin-bottom:12px;color:var(--critical)}
+.path-flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.path-node{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;color:var(--critical)}
+.path-arrow{color:var(--muted);font-size:10px}
+
+/* Parallels */
+.parallels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:24px}
+.parallel-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+.parallel-card h4{font-size:13px;margin-bottom:8px}
+.parallel-card .pair{display:flex;gap:8px;align-items:center}
+.parallel-card .pair span{background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#a78bfa}
+.parallel-card .pair .link{color:var(--accent);font-size:10px;font-weight:700}
+.parallel-card p{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* Risks */
+.risks{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px}
+.risk-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.risk-item:last-child{border:none}
+.risk-icon{font-size:18px}
+.risk-text{font-size:13px}
+.risk-text strong{color:var(--client)}
+
+/* Footer */
+.footer{text-align:center;padding:24px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:24px}
+
+/* Responsive */
+@media(max-width:768px){
+.container{padding:12px}
+.header h1{font-size:18px}
+.header .contract-info{gap:8px}
+.summary{grid-template-columns:repeat(2,1fr)}
+.gantt-row{grid-template-columns:30px 200px 1fr}
+}
+
+/* Print */
+@media print{
+body{background:#fff;color:#000}
+.tabs,.tab{display:none!important}
+.tab-content{display:block!important}
+.header{background:#f5f5f5;border:1px solid #ddd}
+.gantt-bar{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+<h1>Planejamento de Projeto <span>CT-423</span></h1>
+<div class="subtitle">Daniela e Max — Reforma de Interiores | VM+Arquitetos</div>
+<div class="contract-info">
+<div class="info-item"><label>Contrato</label><span>CT 20260312-031-123</span></div>
+<div class="info-item"><label>Inicio</label><span>09/03/2026</span></div>
+<div class="info-item"><label>Termino Previsto</label><span>27/07/2026</span></div>
+<div class="info-item"><label>Duracao</label><span>140 dias</span></div>
+<div class="info-item"><label>Metodo</label><span>CPM + Equipe</span></div>
+</div>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary">
+<div class="summary-card"><div class="number">43</div><div class="label">Atividades</div></div>
+<div class="summary-card"><div class="number">11</div><div class="label">Marcos</div></div>
+<div class="summary-card"><div class="number">7</div><div class="label">Paralelismos</div></div>
+<div class="summary-card"><div class="number">140</div><div class="label">Dias corridos</div></div>
+<div class="summary-card"><div class="number">-45d</div><div class="label">Ganho vs sequencial</div></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+<div class="tab active" onclick="switchTab('gantt')">Gantt Visual</div>
+<div class="tab" onclick="switchTab('table')">Tabela Completa</div>
+<div class="tab" onclick="switchTab('milestones')">Marcos</div>
+<div class="tab" onclick="switchTab('analysis')">Analise CPM</div>
+</div>
+
+<!-- TAB: GANTT -->
+<div id="gantt" class="tab-content active">
+<div class="legend">
+<div class="legend-item"><div class="legend-color" style="background:var(--phase1)"></div>Estudos Preliminares</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase2)"></div>Anteprojeto F01</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase3)"></div>Anteprojeto F02</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase4)"></div>Revisoes</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase5)"></div>Pre-executivo</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase7)"></div>Executivo</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase8)"></div>Detalhamentos</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--phase9)"></div>Revisao Final</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--milestone)"></div>Marco</div>
+<div class="legend-item"><div class="legend-color" style="background:var(--client);background:repeating-linear-gradient(45deg,var(--client),var(--client) 3px,rgba(255,107,107,0.5) 3px,rgba(255,107,107,0.5) 6px)"></div>Aprovacao Cliente</div>
+</div>
+<div class="gantt-container" id="ganttChart"></div>
+</div>
+
+<!-- TAB: TABLE -->
+<div id="table" class="tab-content">
+<div class="table-container" id="planningTable"></div>
+</div>
+
+<!-- TAB: MILESTONES -->
+<div id="milestones" class="tab-content">
+<div class="milestones" id="milestonesView"></div>
+</div>
+
+<!-- TAB: ANALYSIS -->
+<div id="analysis" class="tab-content">
+<div class="critical-path">
+<h3>Caminho Critico (Folga Zero)</h3>
+<p style="font-size:12px;color:var(--muted);margin-bottom:12px">Qualquer atraso nestas atividades atrasa o projeto inteiro.</p>
+<div class="path-flow" id="criticalPathFlow"></div>
+</div>
+
+<h3 style="font-size:16px;margin-bottom:12px">Paralelismos Aplicados (7)</h3>
+<div class="parallels" id="parallelsView"></div>
+
+<div class="risks">
+<h3 style="font-size:16px;margin-bottom:12px">Riscos Identificados</h3>
+<div class="risk-item"><div class="risk-icon">&#9888;</div><div class="risk-text"><strong>Aprovacao do cliente sem prazo contratual</strong> — Os 4 dias corridos sao premissa interna. Se ultrapassar, impacta direto no termino.</div></div>
+<div class="risk-item"><div class="risk-icon">&#9888;</div><div class="risk-text"><strong>Item 2.1.2.5 (estudo nova possibilidade)</strong> — Pode gerar retrabalho se o cliente pedir mudancas significativas na Fase 02.</div></div>
+<div class="risk-item"><div class="risk-icon">&#9888;</div><div class="risk-text"><strong>Paralelismos dependem da equipe</strong> — Se alguem estiver alocado em outro projeto, o ganho de 45 dias diminui.</div></div>
+</div>
+
+<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px">
+<h3 style="font-size:16px;margin-bottom:12px">Premissas do Planejamento</h3>
+<ul style="font-size:13px;color:var(--muted);list-style:none;display:grid;gap:6px">
+<li>&#8226; Inicio em 09/03/2026 por decisao top-down da Viviane Mazoni, independente do boleto</li>
+<li>&#8226; Dias uteis excluem sabados, domingos e feriados nacionais</li>
+<li>&#8226; Feriados: 03/04 (Sexta Santa), 21/04 (Tiradentes), 01/05 (Trabalho), 04/06 (Corpus Christi)</li>
+<li>&#8226; Aprovacao do cliente: 4 dias corridos (premissa interna)</li>
+<li>&#8226; Contrato NAO define prazo de aprovacao do cliente</li>
+<li>&#8226; Acompanhamentos (2.1.7) diluidos ao longo do projeto</li>
+<li>&#8226; Metodo CPM com 7 paralelismos (equipe colaborativa)</li>
+</ul>
+</div>
+</div>
+
+</div>
+
+<div class="footer">
+AVAS 2026 — Todos os direitos reservados | VM+Arquitetos
+</div>
+
+<script>
+const TASKS=[
+{id:0,wbs:"—",name:"MARCO ZERO: Decisao top-down Viviane",pred:"—",dep:"—",start:"2026-03-09",end:"2026-03-09",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:"",wbs:"",name:"2.1.1. ESTUDOS PRELIMINARES",type:"section",phase:"phase1"},
+{id:1,wbs:"2.1.1.1",name:"Entrevista e briefing",pred:"0",dep:"TI",start:"2026-03-09",end:"2026-03-09",du:0,folga:0,type:"task",phase:"phase1",critical:true},
+{id:2,wbs:"2.1.1.2",name:"Levantamento in loco + registro fotografico",pred:"1",dep:"TI",start:"2026-03-10",end:"2026-03-12",du:3,folga:0,type:"task",phase:"phase1",critical:true},
+{id:3,wbs:"2.1.1.3",name:"Transcricao da medicao para software",pred:"2",dep:"II+1du",start:"2026-03-11",end:"2026-03-13",du:3,folga:0,type:"task",phase:"phase1",critical:true},
+{id:"",wbs:"",name:"2.1.2. ANTEPROJETO — FASE 01",type:"section",phase:"phase2"},
+{id:4,wbs:"2.1.2.1",name:"Apresentacao da planta de layout",pred:"2;3",dep:"TI (ambas)",start:"2026-03-16",end:"2026-03-19",du:4,folga:0,type:"task",phase:"phase2",critical:true},
+{id:5,wbs:"—",name:"MARCO: Apresentacao layout ao Cliente",pred:"4",dep:"TI",start:"2026-03-19",end:"2026-03-19",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:6,wbs:"—",name:"Aprovacao do Cliente — Fase 01",pred:"5",dep:"TI+4dc",start:"2026-03-20",end:"2026-03-23",du:"4dc",folga:0,type:"client",phase:"client",critical:true},
+{id:"",wbs:"",name:"REVISAO ANTEPROJETO FASE 01 (4.2 F-I)",type:"section",phase:"phase4"},
+{id:7,wbs:"—",name:"Ajustes conforme feedback cliente (layout)",pred:"6",dep:"TI",start:"2026-03-23",end:"2026-03-27",du:5,folga:0,type:"task",phase:"phase4",critical:true},
+{id:8,wbs:"—",name:"MARCO: Entrega revisao Fase 01",pred:"7",dep:"TI",start:"2026-03-27",end:"2026-03-27",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:9,wbs:"—",name:"Aprovacao do Cliente — Revisao F01",pred:"8",dep:"TI+4dc",start:"2026-03-28",end:"2026-03-31",du:"4dc",folga:0,type:"client",phase:"client",critical:true},
+{id:"",wbs:"",name:"2.1.2. ANTEPROJETO — FASE 02",type:"section",phase:"phase3"},
+{id:10,wbs:"2.1.2.2",name:"Perspectivas 3D internas e externas",pred:"9",dep:"TI",start:"2026-03-31",end:"2026-04-10",du:8,folga:0,type:"task",phase:"phase3",critical:true},
+{id:11,wbs:"—",name:"MARCO INTERNO: Aprovacao imagens 3D",pred:"10",dep:"TI",start:"2026-04-10",end:"2026-04-10",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:12,wbs:"2.1.2.3",name:"Pre-selecao de materiais",pred:"10",dep:"II+5du",start:"2026-04-08",end:"2026-04-13",du:4,folga:0,type:"task",phase:"phase3",critical:false},
+{id:13,wbs:"2.1.2.4",name:"Apresentacao e discussao das solucoes",pred:"10;12",dep:"TI (ambas)",start:"2026-04-14",end:"2026-04-16",du:3,folga:0,type:"task",phase:"phase3",critical:true},
+{id:14,wbs:"2.1.2.5",name:"Estudo nova possibilidade (se necessario)",pred:"13",dep:"TI",start:"2026-04-17",end:"2026-04-22",du:3,folga:0,type:"task",phase:"phase3",critical:true},
+{id:15,wbs:"2.1.2.6",name:"Aprovacao do anteprojeto por e-mail",pred:"14",dep:"TI",start:"2026-04-23",end:"2026-04-23",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:16,wbs:"—",name:"MARCO: Apresentacao Anteprojeto F02",pred:"15",dep:"TI",start:"2026-04-23",end:"2026-04-23",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:17,wbs:"—",name:"Aprovacao do Cliente — Fase 02",pred:"16",dep:"TI+4dc",start:"2026-04-24",end:"2026-04-27",du:"4dc",folga:0,type:"client",phase:"client",critical:true},
+{id:"",wbs:"",name:"REVISAO ANTEPROJETO FASE 02 (4.2 F-II)",type:"section",phase:"phase4"},
+{id:18,wbs:"—",name:"Revisao 3D, materiais e solucoes",pred:"17",dep:"TI",start:"2026-04-27",end:"2026-05-18",du:15,folga:0,type:"task",phase:"phase4",critical:true},
+{id:19,wbs:"—",name:"MARCO: Entrega revisao Fase 02",pred:"18",dep:"TI",start:"2026-05-18",end:"2026-05-18",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:20,wbs:"—",name:"Aprovacao Cliente + autorizacao executivo",pred:"19",dep:"TI+4dc",start:"2026-05-19",end:"2026-05-22",du:"4dc",folga:0,type:"client",phase:"client",critical:true},
+{id:"",wbs:"",name:"2.1.3. PROJETO PRE-EXECUTIVO",type:"section",phase:"phase5"},
+{id:21,wbs:"2.1.3.1",name:"Planta layout cotada",pred:"20",dep:"TI",start:"2026-05-22",end:"2026-05-25",du:2,folga:0,type:"task",phase:"phase5",critical:true},
+{id:22,wbs:"2.1.3.2",name:"Quantitativo de materiais",pred:"20",dep:"II c/ 21",start:"2026-05-22",end:"2026-05-25",du:2,folga:0,type:"task",phase:"phase5",critical:false},
+{id:23,wbs:"2.1.3.3",name:"Lista de loucas e metais",pred:"21;22",dep:"TI (ambas)",start:"2026-05-26",end:"2026-05-27",du:2,folga:0,type:"task",phase:"phase5",critical:true},
+{id:24,wbs:"2.1.3.4",name:"Detalhamentos de pedras",pred:"23",dep:"II c/ 23",start:"2026-05-26",end:"2026-05-26",du:1,folga:1,type:"task",phase:"phase5",critical:false},
+{id:25,wbs:"—",name:"MARCO: Entrega Pre-executivo",pred:"23;24",dep:"TI (ambas)",start:"2026-05-27",end:"2026-05-27",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:26,wbs:"—",name:"Aprovacao do Cliente — Pre-executivo",pred:"25",dep:"TI+4dc",start:"2026-05-28",end:"2026-05-31",du:"4dc",folga:0,type:"client",phase:"client",critical:true},
+{id:"",wbs:"",name:"2.1.4. REVISAO FINAL ANTEPROJETO",type:"section",phase:"phase4"},
+{id:27,wbs:"2.1.4",name:"Compatibilizacao total do anteprojeto",pred:"26",dep:"TI",start:"2026-06-01",end:"2026-06-15",du:10,folga:0,type:"task",phase:"phase4",critical:true},
+{id:28,wbs:"—",name:"MARCO: Entrega Revisao Final",pred:"27",dep:"TI",start:"2026-06-15",end:"2026-06-15",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:"",wbs:"",name:"2.1.5. PROJETO EXECUTIVO",type:"section",phase:"phase7"},
+{id:29,wbs:"2.1.5.1",name:"Planta de adequacoes",pred:"28",dep:"TI",start:"2026-06-16",end:"2026-06-18",du:3,folga:0,type:"task",phase:"phase7",critical:true},
+{id:30,wbs:"2.1.5.2",name:"Planta de pontos eletricos",pred:"29",dep:"TI",start:"2026-06-19",end:"2026-06-23",du:3,folga:0,type:"task",phase:"phase7",critical:true},
+{id:31,wbs:"2.1.5.3",name:"Planta de pontos hidraulicos",pred:"29",dep:"II c/ 30",start:"2026-06-19",end:"2026-06-22",du:2,folga:1,type:"task",phase:"phase7",critical:false},
+{id:32,wbs:"2.1.5.4",name:"Projeto luminotecnico",pred:"30;31",dep:"TI (ambas)",start:"2026-06-24",end:"2026-06-26",du:3,folga:0,type:"task",phase:"phase7",critical:true},
+{id:33,wbs:"2.1.5.5",name:"Areas molhadas (se houver)",pred:"32",dep:"II c/ 32",start:"2026-06-24",end:"2026-06-25",du:2,folga:1,type:"task",phase:"phase7",critical:false},
+{id:34,wbs:"2.1.5.6",name:"Planta de acabamentos",pred:"32;33",dep:"TI (ambas)",start:"2026-06-29",end:"2026-06-30",du:2,folga:0,type:"task",phase:"phase7",critical:true},
+{id:35,wbs:"—",name:"MARCO: Entrega Projeto Executivo",pred:"34",dep:"TI",start:"2026-06-30",end:"2026-06-30",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:"",wbs:"",name:"2.1.6. DETALHAMENTOS",type:"section",phase:"phase8"},
+{id:36,wbs:"2.1.6.1",name:"Detalhamento de vidros e espelhos",pred:"35",dep:"TI",start:"2026-07-01",end:"2026-07-08",du:6,folga:2,type:"task",phase:"phase8",critical:false},
+{id:37,wbs:"2.1.6.2",name:"Design de moveis — desenho e detalhamento",pred:"35",dep:"II c/ 36",start:"2026-07-01",end:"2026-07-10",du:8,folga:0,type:"task",phase:"phase8",critical:true},
+{id:38,wbs:"2.1.6.3",name:"Detalhamentos complementares",pred:"36;37",dep:"TI (ambas)",start:"2026-07-13",end:"2026-07-16",du:4,folga:0,type:"task",phase:"phase8",critical:true},
+{id:39,wbs:"—",name:"MARCO: Entrega Detalhamentos",pred:"38",dep:"TI",start:"2026-07-16",end:"2026-07-16",du:0,folga:0,type:"milestone",phase:"milestone",critical:true},
+{id:"",wbs:"",name:"2.1.7. ACOMPANHAMENTOS (diluidos)",type:"section",phase:"phase6"},
+{id:40,wbs:"2.1.7.1",name:"5 visitas em lojas",pred:"21",dep:"II",start:"2026-05-22",end:"2026-07-16",du:"—",folga:"Livre",type:"task",phase:"phase6",critical:false},
+{id:41,wbs:"2.1.7.2",name:"1 acompanhamento producao",pred:"36",dep:"II",start:"2026-07-01",end:"2026-07-16",du:"—",folga:"Livre",type:"task",phase:"phase6",critical:false},
+{id:"",wbs:"",name:"REVISAO FINAL (4.7)",type:"section",phase:"phase9"},
+{id:42,wbs:"—",name:"Revisao de detalhamento e executivo",pred:"39",dep:"TI",start:"2026-07-17",end:"2026-07-27",du:7,folga:0,type:"task",phase:"phase9",critical:true},
+{id:43,wbs:"—",name:"MARCO FINAL: PROJETO COMPLETO",pred:"42",dep:"TI",start:"2026-07-27",end:"2026-07-27",du:0,folga:0,type:"milestone",phase:"milestone",critical:true}
+];
+
+const PROJECT_START=new Date(2026,2,9);
+const PROJECT_END=new Date(2026,6,27);
+const TODAY=new Date();
+const TOTAL_DAYS=Math.ceil((PROJECT_END-PROJECT_START)/(1000*60*60*24));
+const MONTHS=["Mar","Abr","Mai","Jun","Jul","Ago"];
+
+function switchTab(id){
+document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+event.target.classList.add('active');
+}
+
+function dayOffset(dateStr){
+const d=new Date(dateStr+"T12:00:00");
+return Math.max(0,Math.ceil((d-PROJECT_START)/(1000*60*60*24)));
+}
+function barLeft(dateStr){return(dayOffset(dateStr)/TOTAL_DAYS*100).toFixed(2)}
+function barWidth(s,e){
+const ds=dayOffset(s),de=dayOffset(e);
+return(Math.max(1,de-ds+1)/TOTAL_DAYS*100).toFixed(2);
+}
+
+function phaseColor(phase){
+const map={phase1:'var(--phase1)',phase2:'var(--phase2)',phase3:'var(--phase3)',phase4:'var(--phase4)',phase5:'var(--phase5)',phase6:'var(--phase6)',phase7:'var(--phase7)',phase8:'var(--phase8)',phase9:'var(--phase9)',milestone:'var(--milestone)',client:'var(--client)'};
+return map[phase]||'#666';
+}
+
+function fmtDate(s){
+const d=new Date(s+"T12:00:00");
+const dd=String(d.getDate()).padStart(2,'0');
+const mm=String(d.getMonth()+1).padStart(2,'0');
+return dd+'/'+mm;
+}
+
+// GANTT
+function renderGantt(){
+const ct=document.getElementById('ganttChart');
+let h='<div class="gantt-header"><div>ID</div><div>Atividade</div><div><div class="gantt-months">';
+const startMonth=2,endMonth=7;
+for(let m=startMonth;m<=endMonth;m++){
+h+=`<div class="gantt-month">${MONTHS[m-2]||''} 2026</div>`;
+}
+h+='</div></div></div>';
+
+TASKS.forEach(t=>{
+if(t.type==='section'){
+h+=`<div class="gantt-row section"><div class="gantt-id"></div><div class="gantt-name">${t.name}</div><div></div></div>`;
+return;
+}
+const color=phaseColor(t.phase);
+const isMilestone=t.type==='milestone';
+const isClient=t.type==='client';
+let barClass=isMilestone?'gantt-bar milestone':isClient?'gantt-bar client':'gantt-bar';
+if(t.critical)barClass+=' critical';
+const left=barLeft(t.start);
+const width=isMilestone?'12px':barWidth(t.start,t.end)+'%';
+const label=isMilestone?'':t.du;
+
+h+=`<div class="gantt-row">
+<div class="gantt-id">${t.id}</div>
+<div class="gantt-name" title="${t.name}">${t.name}<span class="dates">${fmtDate(t.start)}${t.start!==t.end?' → '+fmtDate(t.end):''}</span></div>
+<div class="gantt-bar-area">
+<div class="${barClass}" style="left:${left}%;${isMilestone?'':'width:'+width+';'}background:${isClient?'':isMilestone?color:color};opacity:0.9" title="${t.name}\n${fmtDate(t.start)} → ${fmtDate(t.end)}\nPred: ${t.pred} (${t.dep})">
+${!isMilestone?'<span class="bar-label">'+label+'</span>':''}
+</div>
+</div></div>`;
+});
+
+ct.innerHTML=h;
+}
+
+// TABLE
+function renderTable(){
+const ct=document.getElementById('planningTable');
+let h=`<table class="planning">
+<thead><tr><th>ID</th><th>WBS</th><th>Atividade</th><th>Pred.</th><th>Dep.</th><th>Inicio</th><th>Fim</th><th>DU</th><th>Folga</th></tr></thead><tbody>`;
+
+TASKS.forEach(t=>{
+if(t.type==='section'){
+h+=`<tr class="section-row"><td colspan="9">${t.name}</td></tr>`;
+return;
+}
+const cls=t.type==='milestone'?'milestone-row':t.type==='client'?'client-row':'';
+const folgaBadge=t.folga===0?'<span class="badge badge-critical">0 (CC)</span>':
+t.folga==='Livre'?'<span class="badge badge-livre">Livre</span>':
+'<span class="badge badge-folga">'+t.folga+'dc</span>';
+
+h+=`<tr class="${cls}">
+<td>${t.id}</td>
+<td>${t.wbs}</td>
+<td><span class="phase-dot" style="background:${phaseColor(t.phase)}"></span>${t.name}</td>
+<td>${t.pred}</td>
+<td><strong>${t.dep}</strong></td>
+<td>${fmtDate(t.start)}</td>
+<td>${fmtDate(t.end)}</td>
+<td>${t.du}</td>
+<td>${folgaBadge}</td>
+</tr>`;
+});
+h+='</tbody></table>';
+ct.innerHTML=h;
+}
+
+// MILESTONES
+function renderMilestones(){
+const ct=document.getElementById('milestonesView');
+const ms=TASKS.filter(t=>t.type==='milestone');
+const colors=['var(--phase1)','var(--phase2)','var(--phase3)','var(--phase3)','var(--phase4)','var(--phase3)','var(--phase5)','var(--phase4)','var(--phase7)','var(--phase8)','var(--accent)'];
+let h='';
+ms.forEach((m,i)=>{
+const d=new Date(m.start+"T12:00:00");
+const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][d.getDay()];
+const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set'][d.getMonth()];
+const isPast=d<TODAY;
+const isCurrent=Math.abs(d-TODAY)<7*24*60*60*1000;
+const cls=isCurrent?'milestone-card current':isPast?'milestone-card past':'milestone-card';
+
+h+=`<div class="${cls}">
+<div class="m-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="month">${months}</div><div class="dow">${dow}</div></div>
+<div class="m-line" style="background:${colors[i]||'var(--accent)'}"></div>
+<div class="m-info"><h3>${m.name}</h3><p>ID ${m.id} | Pred: ${m.pred} (${m.dep})</p></div>
+</div>`;
+});
+ct.innerHTML=h;
+}
+
+// CRITICAL PATH
+function renderAnalysis(){
+const cp=[0,1,2,3,4,5,6,7,8,9,10,13,14,15,16,17,18,19,20,21,23,25,26,27,28,29,30,32,34,35,37,38,39,42,43];
+const flow=document.getElementById('criticalPathFlow');
+let h='';
+cp.forEach((id,i)=>{
+h+=`<span class="path-node">${id}</span>`;
+if(i<cp.length-1)h+=`<span class="path-arrow">&#9654;</span>`;
+});
+flow.innerHTML=h;
+
+const parallels=[
+{a:"ID 3",b:"ID 2",type:"II+1du",desc:"Equipe comeca transcricao enquanto outra pessoa ainda mede"},
+{a:"ID 12",b:"ID 10",type:"II+5du",desc:"Materiais comecam quando 3D esta 60% pronto"},
+{a:"ID 22",b:"ID 21",type:"II",desc:"Uma pessoa faz planta cotada, outra levanta quantitativos"},
+{a:"ID 24",b:"ID 23",type:"II",desc:"Pedras pesquisadas em paralelo com loucas/metais"},
+{a:"ID 31",b:"ID 30",type:"II",desc:"Hidraulico e eletrico rodam juntos (pessoas diferentes)"},
+{a:"ID 33",b:"ID 32",type:"II",desc:"Areas molhadas em paralelo com luminotecnico"},
+{a:"ID 37",b:"ID 36",type:"II",desc:"Vidros/espelhos e moveis detalhados ao mesmo tempo"}
+];
+const pv=document.getElementById('parallelsView');
+let ph='';
+parallels.forEach(p=>{
+ph+=`<div class="parallel-card"><h4>${p.type}</h4><div class="pair"><span>${p.a}</span><span class="link">&#8596;</span><span>${p.b}</span></div><p>${p.desc}</p></div>`;
+});
+pv.innerHTML=ph;
+}
+
+// INIT
+renderGantt();
+renderTable();
+renderMilestones();
+renderAnalysis();
+</script>
+
+</body>
+</html>
